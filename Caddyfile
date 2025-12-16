@@ -1,42 +1,40 @@
 mimarmuratdemir.com {
-    # API reverse proxy (öncelikli - /api/* istekleri)
-    handle /api/* {
-        reverse_proxy backend:8080 {
-            header_up Host {host}
-            header_up X-Real-IP {remote}
-            header_up X-Forwarded-For {remote}
-            header_up X-Forwarded-Proto {scheme}
-        }
-    }
+	# Compression
+	encode zstd gzip
 
-    # Frontend reverse proxy (tüm diğer istekler)
-    # Caddy otomatik olarak /.well-known/acme-challenge/* path'ini handle eder
-    handle {
-        reverse_proxy frontend:80 {
-            header_up Host {host}
-            header_up X-Real-IP {remote}
-            header_up X-Forwarded-For {remote}
-            header_up X-Forwarded-Proto {scheme}
-        }
-    }
+	# API requests to backend
+	handle /api/* {
+		reverse_proxy backend:8080 {
+			header_up Host {host}
+			header_up X-Real-IP {remote}
+			header_up X-Forwarded-For {remote}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
 
-    # Security headers
-    header {
-        # XSS Protection
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
-        X-XSS-Protection "1; mode=block"
-        # HSTS (HTTPS zorunlu)
-        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-    }
+	# All other requests to frontend
+	# Note: Caddy automatically handles /.well-known/acme-challenge/* for Let's Encrypt
+	handle {
+		reverse_proxy frontend:80 {
+			header_up Host {host}
+			header_up X-Real-IP {remote}
+			header_up X-Forwarded-For {remote}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
 
-    # Gzip compression
-    encode gzip zstd
+	# Security headers
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		X-XSS-Protection "1; mode=block"
+		Referrer-Policy "no-referrer"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+	}
 
-    # Logging
-    log {
-        output stdout
-        format console
-    }
+	# Logging
+	log {
+		output stdout
+		format console
+	}
 }
-
