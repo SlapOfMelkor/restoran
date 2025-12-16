@@ -4,27 +4,17 @@ mimarmuratdemir.com {
 
 	# API requests to backend
 	handle /api/* {
-		reverse_proxy backend:8080 {
-			header_up Host {host}
-			header_up X-Real-IP {remote}
-			header_up X-Forwarded-For {remote}
-			header_up X-Forwarded-Proto {scheme}
-		}
+		reverse_proxy backend:8080
 	}
 
-	# All other requests to frontend (excluding ACME challenge)
+	# All other requests to frontend
 	# Caddy automatically handles /.well-known/acme-challenge/* for Let's Encrypt
-	# We need to exclude it from frontend proxy so Caddy's built-in handler can work
-	$@not_acme {
+	# We exclude it from frontend proxy so Caddy's built-in handler can work
+	@not_acme {
 		not path /.well-known/acme-challenge/*
 	}
 	handle @not_acme {
-		reverse_proxy frontend:80 {
-			header_up Host {host}
-			header_up X-Real-IP {remote}
-			header_up X-Forwarded-For {remote}
-			header_up X-Forwarded-Proto {scheme}
-		}
+		reverse_proxy frontend:80
 	}
 
 	# Security headers
