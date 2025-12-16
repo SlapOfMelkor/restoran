@@ -10,6 +10,7 @@ mimarmuratdemir.com {
     }
 
     # Frontend reverse proxy (tüm diğer istekler)
+    # Caddy otomatik olarak /.well-known/acme-challenge/* path'ini handle eder
     handle {
         reverse_proxy frontend:80 {
             header_up Host {host}
