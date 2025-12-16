@@ -12,9 +12,13 @@ mimarmuratdemir.com {
 		}
 	}
 
-	# All other requests to frontend
-	# Note: Caddy automatically handles /.well-known/acme-challenge/* for Let's Encrypt
-	handle {
+	# All other requests to frontend (excluding ACME challenge)
+	# Caddy automatically handles /.well-known/acme-challenge/* for Let's Encrypt
+	# We need to exclude it from frontend proxy so Caddy's built-in handler can work
+	$@not_acme {
+		not path /.well-known/acme-challenge/*
+	}
+	handle @not_acme {
 		reverse_proxy frontend:80 {
 			header_up Host {host}
 			header_up X-Real-IP {remote}
