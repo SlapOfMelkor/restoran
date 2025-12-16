@@ -1,0 +1,21 @@
+# Vendor dizinini ignore et (go mod download kullanacağız)
+vendor/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Build artifacts
+restoran-server
+

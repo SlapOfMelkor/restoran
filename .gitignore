@@ -1,0 +1,88 @@
+# Environment files
+.env
+.env.local
+.env.production
+.env.*.local
+.env.production.local
+
+# Docker
+*.log
+docker-compose.override.yml
+# Development docker-compose (production'da gerek yok)
+restoran-backend/docker-compose.yml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Node modules (frontend)
+node_modules/
+restoran-frontend/node_modules/
+
+# Go build artifacts
+restoran-backend/restoran-server
+restoran-backend/server
+*.test
+*.out
+
+# Database backups
+*.sql
+*.sql.gz
+backup_*.sql
+
+# Secrets
+secrets/
+*.key
+*.pem
+*.cert
+
+# Geçici/Test dosyaları
+RESTORE
+*.ipynb
+*.tmp
+*.temp
+*.bak
+*.backup
+Dokümantasyon (opsiyonel - sunucuya gerek yok ama git'te tutulabilir)
+DEPLOYMENT.md
+UPDATE_GUIDE.md
+QUICK_START.md
+TEST_REHBERI.md
+
+# Coverage reports
+coverage/
+*.cover
+*.coverprofile
+
+# Cache directories
+.cache/
+.parcel-cache/
+.vite/
+.turbo/
+.next/
+.nuxt/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+

@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: linear-gradient(to bottom, #BDB8B8, #E3D6EB);
+  color: #111111;
+}
+
+input, select, textarea {
+  background-color: #ffffff;
+  color: #000000;
+}

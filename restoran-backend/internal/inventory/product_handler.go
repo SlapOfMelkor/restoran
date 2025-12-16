@@ -1,0 +1,135 @@
+package inventory
+
+import (
+	"strings"
+
+	"restoran-backend/internal/database"
+	"restoran-backend/internal/models"
+
+	"github.com/gofiber/fiber/v2"
+)
+
+type ProductResponse struct {
+	ID   uint   `json:"id"`
+	Name string `json:"name"`
+	Unit string `json:"unit"`
+}
+
+type CreateProductRequest struct {
+	Name string `json:"name"`
+	Unit string `json:"unit"`
+}
+
+type UpdateProductRequest struct {
+	Name *string `json:"name"`
+	Unit *string `json:"unit"`
+}
+
+// GET /api/products (tüm authenticated kullanıcılar görebilir)
+func ListProductsHandler() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		var products []models.Product
+		if err := database.DB.Order("name asc").Find(&products).Error; err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler listelenemedi")
+		}
+
+		res := make([]ProductResponse, 0, len(products))
+		for _, p := range products {
+			res = append(res, ProductResponse{
+				ID:   p.ID,
+				Name: p.Name,
+				Unit: p.Unit,
+			})
+		}
+		return c.JSON(res)
+	}
+}
+
+// POST /api/admin/products (sadece super_admin)
+func CreateProductHandler() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		var body CreateProductRequest
+		if err := c.BodyParser(&body); err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Geçersiz veri")
+		}
+
+		body.Name = strings.TrimSpace(body.Name)
+		body.Unit = strings.TrimSpace(body.Unit)
+
+		if body.Name == "" || body.Unit == "" {
+			return fiber.NewError(fiber.StatusBadRequest, "Name ve unit zorunlu")
+		}
+
+		p := models.Product{
+			Name:            body.Name,
+			Unit:            body.Unit,
+			IsCenterProduct: true,
+		}
+
+		if err := database.DB.Create(&p).Error; err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Ürün oluşturulamadı")
+		}
+
+		return c.Status(fiber.StatusCreated).JSON(ProductResponse{
+			ID:   p.ID,
+			Name: p.Name,
+			Unit: p.Unit,
+		})
+	}
+}
+
+// PUT /api/admin/products/:id
+func UpdateProductHandler() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		id := c.Params("id")
+
+		var p models.Product
+		if err := database.DB.First(&p, "id = ?", id).Error; err != nil {
+			return fiber.NewError(fiber.StatusNotFound, "Ürün bulunamadı")
+		}
+
+		var body UpdateProductRequest
+		if err := c.BodyParser(&body); err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Geçersiz veri")
+		}
+
+		if body.Name != nil {
+			name := strings.TrimSpace(*body.Name)
+			if name == "" {
+				return fiber.NewError(fiber.StatusBadRequest, "Name boş olamaz")
+			}
+			p.Name = name
+		}
+
+		if body.Unit != nil {
+			unit := strings.TrimSpace(*body.Unit)
+			if unit == "" {
+				return fiber.NewError(fiber.StatusBadRequest, "Unit boş olamaz")
+			}
+			p.Unit = unit
+		}
+
+		if err := database.DB.Save(&p).Error; err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Ürün güncellenemedi")
+		}
+
+		return c.JSON(ProductResponse{
+			ID:   p.ID,
+			Name: p.Name,
+			Unit: p.Unit,
+		})
+	}
+}
+
+// DELETE /api/admin/products/:id
+func DeleteProductHandler() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		id := c.Params("id")
+
+		if err := database.DB.Delete(&models.Product{}, "id = ?", id).Error; err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Ürün silinemedi")
+		}
+
+		return c.SendStatus(fiber.StatusNoContent)
+	}
+}

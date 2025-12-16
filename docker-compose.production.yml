@@ -1,0 +1,88 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: restoran-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-Melkorrestoran}
+      POSTGRES_USER: ${POSTGRES_USER:-Melkor}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - restoran-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-Melkor} -d ${POSTGRES_DB:-Melkorrestoran}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Port dış dünyaya açık değil, sadece Docker network içinde erişilebilir
+
+  # Backend API
+  backend:
+    build:
+      context: ./restoran-backend
+      dockerfile: Dockerfile
+    container_name: restoran-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      HTTP_PORT: ${HTTP_PORT:-8080}
+      DATABASE_DSN: ${DATABASE_DSN}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://mimarmuratdemir.com}
+    networks:
+      - restoran-network
+    # Port sadece Caddy'ye açık, dış dünyaya değil
+
+  # Frontend (Nginx)
+  frontend:
+    build:
+      context: ./restoran-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://mimarmuratdemir.com/api}
+    container_name: restoran-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - restoran-network
+    # Port sadece Caddy'ye açık
+
+  # Caddy (Reverse Proxy + HTTPS)
+  caddy:
+    image: caddy:2-alpine
+    container_name: restoran-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - restoran-network
+    depends_on:
+      - frontend
+      - backend
+
+networks:
+  restoran-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+
