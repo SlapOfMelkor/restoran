@@ -204,7 +204,7 @@ export const ExpensesPage: React.FC = () => {
   const totalShipmentCosts = shipments.reduce((sum, sh) => sum + (sh.total_amount || 0), 0);
   const totalAllCosts = totalExpenses + totalShipmentCosts;
 
-  const handleUndo = async (logId: number, expenseId: number) => {
+  const handleUndo = async (logId: number, _expenseId: number) => {
     if (!confirm("Bu işlemi geri almak istediğinize emin misiniz?")) {
       return;
     }

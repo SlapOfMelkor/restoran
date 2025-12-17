@@ -139,7 +139,7 @@ export const CashPage: React.FC = () => {
     }
   };
 
-  const handleUndo = async (logId: number, movementId: number) => {
+  const handleUndo = async (logId: number, _movementId: number) => {
     if (!confirm("Bu işlemi geri almak istediğinize emin misiniz?")) {
       return;
     }

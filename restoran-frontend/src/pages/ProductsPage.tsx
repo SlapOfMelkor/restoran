@@ -9,7 +9,7 @@ interface Product {
 }
 
 export const ProductsPage: React.FC = () => {
-  const { user } = useAuth();
+  const { } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);

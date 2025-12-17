@@ -123,7 +123,7 @@ export const BankStatusPage: React.FC = () => {
     }
   };
 
-  const handleUpdateBalance = async (id: number, newBalance: number) => {
+  const handleUpdateBalance = async (_id: number, _newBalance: number) => {
     try {
       await apiClient.put(`/admin/bank-accounts/${id}`, { balance: newBalance });
       alert("Bakiye güncellendi");

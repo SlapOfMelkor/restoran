@@ -172,7 +172,7 @@ export const CenterShipmentsPage: React.FC = () => {
     (p) => p.id === parseInt(formData.product_id)
   );
 
-  const handleUndo = async (logId: number, shipmentId: number) => {
+  const handleUndo = async (logId: number, _shipmentId: number) => {
     if (!confirm("Bu işlemi geri almak istediğinize emin misiniz?")) {
       return;
     }

@@ -326,7 +326,7 @@ export const StockPage: React.FC = () => {
     }
   };
 
-  const handleUndo = async (logId: number, entryId: number) => {
+  const handleUndo = async (logId: number, _entryId: number) => {
     if (!confirm("Bu işlemi geri almak istediğinize emin misiniz?")) {
       return;
     }
@@ -361,7 +361,6 @@ export const StockPage: React.FC = () => {
     groups.forEach((groupEntries, groupKey) => {
       // Tarih ve created_at'i al (ilk entry'den)
       const firstEntry = groupEntries[0];
-      const entryDate = new Date(firstEntry.created_at);
       
       // Tüm entry'ler geri alınmış mı kontrol et
       const allUndone = groupEntries.every((e) => e.is_undone);

@@ -297,7 +297,7 @@ export const ShipmentsPage: React.FC = () => {
     }
   };
 
-  const handleUndo = async (logId: number, shipmentId: number) => {
+  const handleUndo = async (logId: number, _shipmentId: number) => {
     if (!confirm("Bu işlemi geri almak istediğinize emin misiniz?")) {
       return;
     }

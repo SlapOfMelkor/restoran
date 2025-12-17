@@ -30,7 +30,6 @@ export const WastePage: React.FC = () => {
   const { user, selectedBranchId } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [wasteEntries, setWasteEntries] = useState<WasteEntryWithLog[]>([]);
-  const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(true);
   const [showEntries, setShowEntries] = useState(true);
   const [formData, setFormData] = useState({
@@ -150,7 +149,7 @@ export const WastePage: React.FC = () => {
     }
   };
 
-  const handleUndo = async (logId: number, entryId: number) => {
+  const handleUndo = async (logId: number, _entryId: number) => {
     if (!confirm("Bu işlemi geri almak istediğinize emin misiniz?")) {
       return;
     }
