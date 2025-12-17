@@ -1,0 +1,3 @@
+# Bu klasör SSL sertifikaları için mount point olarak kullanılıyor
+# Gerçek sertifikalar Docker volume'da saklanıyor
+
