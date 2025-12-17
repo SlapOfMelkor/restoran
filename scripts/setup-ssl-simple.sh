@@ -36,6 +36,7 @@ sleep 10
 
 echo ""
 echo "3. Let's Encrypt sertifikası alınıyor..."
+echo "   (Bu işlem 1-2 dakika sürebilir, lütfen bekleyin...)"
 docker compose -f docker-compose.production.yml run --rm certbot certonly \
   --webroot \
   --webroot-path=/var/www/certbot \
@@ -43,6 +44,7 @@ docker compose -f docker-compose.production.yml run --rm certbot certonly \
   --agree-tos \
   --no-eff-email \
   --force-renewal \
+  --verbose \
   -d mimarmuratdemir.com \
   -d www.mimarmuratdemir.com
 
