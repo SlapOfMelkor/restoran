@@ -63,7 +63,7 @@ DEPLOYMENT.md
 UPDATE_GUIDE.md
 QUICK_START.md
 TEST_REHBERI.md
-anan.md
+devnotes.md
 # Coverage reports
 coverage/
 *.cover
