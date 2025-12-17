@@ -82,35 +82,6 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 text-slate-200">
-          {user?.role === "super_admin" && (
-            <div className="mb-4 pb-4 border-b border-slate-800">
-              <label className="block text-xs font-semibold uppercase text-slate-500 mb-2">
-                🏢 Şube Seçimi
-              </label>
-              <select
-                value={selectedBranchId || ""}
-                onChange={handleBranchChange}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent cursor-pointer"
-                disabled={loadingBranches}
-              >
-                <option value="">Tüm Şubeler</option>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-              {loadingBranches && (
-                <div className="mt-2 text-xs text-slate-500">Yükleniyor...</div>
-              )}
-              {selectedBranchId && (
-                <div className="mt-2 text-xs text-emerald-400">
-                  ✓ {branches.find((b) => b.id === selectedBranchId)?.name || "Şube seçili"}
-                </div>
-              )}
-            </div>
-          )}
-
           <NavLink
             to="/"
             end
@@ -298,32 +269,28 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
             </button>
 
             {user?.role === "super_admin" && (
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 rounded-lg border border-slate-700">
-                  <span className="text-xs font-semibold text-slate-300">🏢 Şube:</span>
-                  <select
-                    value={selectedBranchId || ""}
-                    onChange={handleBranchChange}
-                    className="bg-transparent border-0 text-sm font-medium text-slate-200 focus:outline-none focus:ring-0 cursor-pointer"
-                    disabled={loadingBranches}
-                  >
-                    <option value="">Tüm Şubeler</option>
-                    {branches.map((branch) => (
-                      <option key={branch.id} value={branch.id}>
-                        {branch.name}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedBranchId && (
-                    <span className="ml-2 px-2 py-0.5 bg-emerald-600/20 text-emerald-400 text-xs rounded">
-                      Aktif
-                    </span>
-                  )}
-                </div>
-                {selectedBranchId && (
-                  <div className="text-xs text-[#222222]">
-                    {branches.find((b) => b.id === selectedBranchId)?.name || "Şube seçili"}
-                  </div>
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 rounded-lg border border-slate-700">
+                <span className="text-xs font-semibold text-slate-300">🏢 Şube:</span>
+                <select
+                  value={selectedBranchId || ""}
+                  onChange={handleBranchChange}
+                  className="bg-transparent border-0 text-sm font-medium text-slate-200 focus:outline-none focus:ring-0 cursor-pointer min-w-[150px]"
+                  disabled={loadingBranches}
+                >
+                  <option value="">Tüm Şubeler</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+                {loadingBranches && (
+                  <span className="text-xs text-slate-500">Yükleniyor...</span>
+                )}
+                {selectedBranchId && !loadingBranches && (
+                  <span className="ml-2 px-2 py-0.5 bg-emerald-600/20 text-emerald-400 text-xs rounded">
+                    Aktif
+                  </span>
                 )}
               </div>
             )}
