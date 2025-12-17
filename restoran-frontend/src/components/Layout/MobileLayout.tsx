@@ -133,6 +133,27 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({ children }) => {
 
       {/* İçerik */}
       <main className="flex-1 px-4 py-4 overflow-y-auto">
+        {isHome && user?.role === "super_admin" && (
+          <div className="mb-4 flex items-center gap-2 px-3 py-2 bg-white/70 rounded-lg border border-[#E5E5E5] w-full max-w-xs">
+            <span className="text-[11px] font-semibold text-[#8F1A9F]">🏢 Şube</span>
+            <select
+              value={selectedBranchId || ""}
+              onChange={handleBranchChange}
+              className="flex-1 bg-transparent border-0 text-xs font-medium text-[#8F1A9F] focus:outline-none focus:ring-0 cursor-pointer"
+              disabled={loadingBranches}
+            >
+              <option value="">Tüm Şubeler</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+            {loadingBranches && (
+              <span className="text-[10px] text-slate-500 whitespace-nowrap">Yükleniyor...</span>
+            )}
+          </div>
+        )}
         {children}
       </main>
     </div>
