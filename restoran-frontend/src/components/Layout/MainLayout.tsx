@@ -82,6 +82,35 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 text-slate-200">
+          {user?.role === "super_admin" && (
+            <div className="mb-4 pb-4 border-b border-slate-800">
+              <label className="block text-xs font-semibold uppercase text-slate-500 mb-2">
+                🏢 Şube Seçimi
+              </label>
+              <select
+                value={selectedBranchId || ""}
+                onChange={handleBranchChange}
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent cursor-pointer"
+                disabled={loadingBranches}
+              >
+                <option value="">Tüm Şubeler</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+              {loadingBranches && (
+                <div className="mt-2 text-xs text-slate-500">Yükleniyor...</div>
+              )}
+              {selectedBranchId && (
+                <div className="mt-2 text-xs text-emerald-400">
+                  ✓ {branches.find((b) => b.id === selectedBranchId)?.name || "Şube seçili"}
+                </div>
+              )}
+            </div>
+          )}
+
           <NavLink
             to="/"
             end
