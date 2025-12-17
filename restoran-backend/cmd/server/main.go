@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"strings"
 	"restoran-backend/internal/admin"
 	"restoran-backend/internal/audit"
 	"restoran-backend/internal/auth"
@@ -37,8 +38,13 @@ func main() {
 	})
 
 	// 🔥 CORS MIDDLEWARE
+	// CORS origins'i virgülle ayrılmış string'den array'e çevir
+	corsOrigins := strings.Split(cfg.CORSOrigins, ",")
+	for i := range corsOrigins {
+		corsOrigins[i] = strings.TrimSpace(corsOrigins[i])
+	}
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: cfg.CORSOrigins,
+		AllowOrigins: strings.Join(corsOrigins, ","),
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
 	}))
