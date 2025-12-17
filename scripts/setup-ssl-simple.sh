@@ -13,9 +13,18 @@ if [ -z "$email" ]; then
     exit 1
 fi
 
+# .env.production dosyasının varlığını kontrol et
+if [ ! -f .env.production ]; then
+    echo "❌ HATA: .env.production dosyası bulunamadı!"
+    echo "Lütfen önce .env.production dosyasını oluşturun:"
+    echo "  cp env.production.template .env.production"
+    echo "  nano .env.production"
+    exit 1
+fi
+
 echo ""
 echo "1. Nginx proxy'yi başlatıyorum (HTTP-only)..."
-docker compose -f docker-compose.production.yml up -d nginx-proxy
+docker compose -f docker-compose.production.yml --env-file .env.production up -d nginx-proxy frontend backend
 
 echo ""
 echo "2. 10 saniye bekliyorum (nginx'in başlaması için)..."
@@ -23,7 +32,7 @@ sleep 10
 
 echo ""
 echo "3. Let's Encrypt sertifikası alınıyor..."
-docker compose -f docker-compose.production.yml run --rm certbot certonly \
+docker compose -f docker-compose.production.yml --env-file .env.production run --rm certbot certonly \
   --webroot \
   --webroot-path=/var/www/certbot \
   --email "$email" \
@@ -44,7 +53,7 @@ if [ $? -eq 0 ]; then
     echo "   - 'return 301 https://\$host\$request_uri;' satırını aktif edin (yorum satırından çıkarın)"
     echo ""
     echo "2. Nginx'i yeniden yükleyin:"
-    echo "   docker compose -f docker-compose.production.yml exec nginx-proxy nginx -s reload"
+    echo "   docker compose -f docker-compose.production.yml --env-file .env.production exec nginx-proxy nginx -s reload"
     echo ""
     echo "3. Test edin:"
     echo "   https://mimarmuratdemir.com"
@@ -55,6 +64,6 @@ else
     echo "❌ Sertifika alınamadı. Lütfen hataları kontrol edin:"
     echo "   - DNS ayarlarını kontrol edin"
     echo "   - Port 80'in açık olduğundan emin olun"
-    echo "   - Nginx loglarını kontrol edin: docker compose logs nginx-proxy"
+    echo "   - Nginx loglarını kontrol edin: docker compose -f docker-compose.production.yml --env-file .env.production logs nginx-proxy"
     exit 1
 fi
