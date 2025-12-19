@@ -435,48 +435,18 @@ export const ExpensesPage: React.FC = () => {
 
       {/* Sevkiyat */}
       <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">Sevkiyat</h2>
-          {shipments.length > 0 && (
-            <div className="text-sm font-bold text-orange-400">
-              Toplam: {totalShipmentCosts.toFixed(2)} TL
+          {loading ? (
+            <p className="text-xs text-[#222222]">Yükleniyor...</p>
+          ) : shipments.length === 0 ? (
+            <p className="text-xs text-[#222222]">Henüz sevkiyat kaydı yok</p>
+          ) : (
+            <div className="text-lg font-bold text-orange-400">
+              {totalShipmentCosts.toFixed(2)} TL
             </div>
           )}
         </div>
-        {loading ? (
-          <p className="text-xs text-[#222222]">Yükleniyor...</p>
-        ) : shipments.length === 0 ? (
-          <p className="text-xs text-[#222222]">Henüz sevkiyat kaydı yok</p>
-        ) : (
-          <div className="space-y-2">
-            {shipments.map((shipment) => (
-              <div
-                key={shipment.id}
-                className="p-3 bg-white rounded-xl border border-[#E5E5E5] shadow-sm"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium">{shipment.date}</span>
-                      {shipment.note && (
-                        <>
-                          <span className="text-xs text-slate-500">•</span>
-                          <span className="text-xs text-[#222222]">{shipment.note}</span>
-                        </>
-                      )}
-                    </div>
-                    <div className="text-xs text-[#222222]">
-                      {shipment.items?.length || 0} ürün
-                    </div>
-                  </div>
-                  <div className="text-sm font-semibold text-right text-orange-400">
-                    {shipment.total_amount.toFixed(2)} TL
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
