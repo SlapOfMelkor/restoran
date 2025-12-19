@@ -203,7 +203,7 @@ export const CenterShipmentsPage: React.FC = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs text-[#222222]">
-          Merkez sevkiyat kayıtları ve işlem geçmişi
+          Sevkiyat kayıtları ve işlem geçmişi
         </p>
         <div className="flex gap-2">
         <button

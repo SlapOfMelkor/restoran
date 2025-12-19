@@ -110,7 +110,7 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
             }
             onClick={handleNavClick}
           >
-            🚚 Merkez Sevkiyatları
+            🚚 Sevkiyatlar
           </NavLink>
 
           <NavLink

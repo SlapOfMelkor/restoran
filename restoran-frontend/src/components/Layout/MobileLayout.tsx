@@ -27,7 +27,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({ children }) => {
       case "/stock":
         return "Stok Güncelleme";
       case "/center-shipments":
-        return "Merkez Sevkiyatları";
+        return "Sevkiyatlar";
       case "/shipments":
         return "Sevkiyatlar";
       case "/expenses":

@@ -327,7 +327,7 @@ export const ShipmentsPage: React.FC = () => {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs text-[#222222]">
-          Merkezden gelen ürün sevkiyatlarını yönetin ve stoka aktarın
+          Ürün sevkiyatlarını yönetin ve stoka aktarın
         </p>
         <button
           onClick={() => setShowForm(!showForm)}

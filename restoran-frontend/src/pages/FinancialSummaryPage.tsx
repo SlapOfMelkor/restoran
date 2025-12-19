@@ -235,7 +235,7 @@ export const FinancialSummaryPage: React.FC = () => {
               </div>
             </div>
             <div className="bg-white/80 rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-              <div className="text-xs text-[#222222] mb-1">Merkez Sevkiyat Maliyeti</div>
+              <div className="text-xs text-[#222222] mb-1">Sevkiyat Maliyeti</div>
               <div className="text-lg font-bold text-orange-400">
                 {summary.shipment_costs.toFixed(2)} TL
               </div>

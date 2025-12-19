@@ -419,7 +419,7 @@ export const ExpensesPage: React.FC = () => {
             </div>
           </div>
           <div>
-            <div className="text-xs text-[#222222] mb-1">Merkez Sevkiyatı</div>
+            <div className="text-xs text-[#222222] mb-1">Sevkiyat</div>
             <div className="text-lg font-bold text-orange-400">
               {totalShipmentCosts.toFixed(2)} TL
             </div>
@@ -433,10 +433,10 @@ export const ExpensesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Merkez Sevkiyatı */}
+      {/* Sevkiyat */}
       <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold">Merkez Sevkiyatı</h2>
+          <h2 className="text-sm font-semibold">Sevkiyat</h2>
           {shipments.length > 0 && (
             <div className="text-sm font-bold text-orange-400">
               Toplam: {totalShipmentCosts.toFixed(2)} TL
