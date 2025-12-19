@@ -72,9 +72,7 @@ export const DashboardPage: React.FC = () => {
               <span className="text-2xl text-[#6a1b9a]">🚚</span>
             </div>
             <span className={circleLabel}>
-              MERKEZ
-              <br />
-              SEVKİYATLARI
+              SEVKİYATLAR
             </span>
           </button>
 
