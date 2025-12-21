@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
+import { handleNumberInputChange, getNumberValue } from "../utils/numberFormat";
 
 interface BankAccount {
   id: number;
@@ -61,7 +62,7 @@ export const BankStatusPage: React.FC = () => {
         type: formData.type,
         name: formData.name,
         account_number: formData.account_number,
-        balance: parseFloat(formData.balance) || 0,
+        balance: getNumberValue(formData.balance) || 0,
         description: formData.description,
         is_active: formData.is_active,
       };
@@ -102,7 +103,10 @@ export const BankStatusPage: React.FC = () => {
       type: account.type,
       name: account.name,
       account_number: account.account_number,
-      balance: account.balance.toString(),
+      balance: account.balance.toLocaleString("tr-TR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
       description: account.description,
       is_active: account.is_active,
     });
@@ -209,12 +213,15 @@ export const BankStatusPage: React.FC = () => {
                 {formData.type === "bank" ? "Bakiye" : "Borç"} (TL)
               </label>
               <input
-                type="number"
-                step="0.01"
+                type="text"
                 value={formData.balance}
-                onChange={(e) => setFormData({ ...formData, balance: e.target.value })}
+                onChange={(e) =>
+                  handleNumberInputChange(e, (value) =>
+                    setFormData({ ...formData, balance: value })
+                  )
+                }
                 className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                placeholder="0.00"
+                placeholder="0,00"
                 required
               />
             </div>

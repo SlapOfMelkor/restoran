@@ -116,6 +116,18 @@ export const DashboardPage: React.FC = () => {
               ÖZET
             </span>
           </button>
+
+          <button
+            onClick={() => navigate("/produce")}
+            className="flex flex-col items-center active:scale-[0.97] transition"
+          >
+            <div className={circleBase}>
+              <span className="text-2xl text-[#6a1b9a]">🥬</span>
+            </div>
+            <span className={circleLabel}>
+              MANAV
+            </span>
+          </button>
         </div>
 
         {/* Yönetim başlığı */}

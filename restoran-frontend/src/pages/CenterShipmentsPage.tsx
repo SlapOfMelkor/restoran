@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
+import { handleNumberInputChange, getNumberValue } from "../utils/numberFormat";
 
 interface CenterShipment {
   id: number;
@@ -125,12 +126,14 @@ export const CenterShipmentsPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const unitPriceNum = getNumberValue(formData.unit_price);
+    
     if (
       !formData.product_id ||
       !formData.quantity ||
       !formData.unit_price ||
       parseFloat(formData.quantity) <= 0 ||
-      parseFloat(formData.unit_price) <= 0
+      unitPriceNum <= 0
     ) {
       alert("Lütfen tüm alanları doldurun ve geçerli değerler girin");
       return;
@@ -142,7 +145,7 @@ export const CenterShipmentsPage: React.FC = () => {
         product_id: parseInt(formData.product_id),
         date: formData.date,
         quantity: parseFloat(formData.quantity),
-        unit_price: parseFloat(formData.unit_price),
+        unit_price: unitPriceNum,
         note: formData.note,
       };
 
@@ -274,15 +277,15 @@ export const CenterShipmentsPage: React.FC = () => {
                   Birim Fiyat (TL)
                 </label>
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
+                  type="text"
                   value={formData.unit_price}
                   onChange={(e) =>
-                    setFormData({ ...formData, unit_price: e.target.value })
+                    handleNumberInputChange(e, (value) =>
+                      setFormData({ ...formData, unit_price: value })
+                    )
                   }
                   className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                  placeholder="0.00"
+                  placeholder="0,00"
                   required
                 />
               </div>

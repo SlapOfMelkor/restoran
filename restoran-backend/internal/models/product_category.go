@@ -4,7 +4,9 @@ import "time"
 
 type ProductCategory struct {
 	ID        uint      `gorm:"primaryKey"`
-	Name      string    `gorm:"size:100;not null;unique"`
+	BranchID  uint      `gorm:"index;not null"`
+	Branch    Branch
+	Name      string    `gorm:"size:100;not null"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

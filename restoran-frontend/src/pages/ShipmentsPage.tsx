@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
+import { handleNumberInputChange, getNumberValue } from "../utils/numberFormat";
 
 interface Product {
   id: number;
@@ -13,6 +14,7 @@ interface ShipmentItem {
   product_name: string;
   quantity: number;
   unit_price: number;
+  unit_price_formatted?: string; // Formatlanmış görüntüleme için
   total_price: number;
 }
 
@@ -186,6 +188,7 @@ export const ShipmentsPage: React.FC = () => {
         product_name: firstProduct.name,
         quantity: 0,
         unit_price: 0,
+        unit_price_formatted: "",
         total_price: 0,
       },
     ]);
@@ -210,8 +213,14 @@ export const ShipmentsPage: React.FC = () => {
         alert(`Ürün bulunamadı (ID: ${productId}). Lütfen sayfayı yenileyin.`);
         return;
       }
-    } else if (field === "quantity" || field === "unit_price") {
-      item[field] = Number(value);
+    } else if (field === "quantity") {
+      item.quantity = Number(value);
+      item.total_price = item.quantity * item.unit_price;
+    } else if (field === "unit_price") {
+      // Formatlanmış string geldiğinde parse et
+      const numValue = typeof value === "string" ? getNumberValue(value) : Number(value);
+      item.unit_price = numValue;
+      item.unit_price_formatted = value.toString();
       item.total_price = item.quantity * item.unit_price;
     }
 
@@ -423,13 +432,15 @@ export const ShipmentsPage: React.FC = () => {
                           </td>
                           <td className="p-2">
                             <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={item.unit_price || ""}
-                              onChange={(e) => updateItem(index, "unit_price", e.target.value)}
+                              type="text"
+                              value={item.unit_price_formatted || (item.unit_price > 0 ? item.unit_price.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "")}
+                              onChange={(e) =>
+                                handleNumberInputChange(e, (value) =>
+                                  updateItem(index, "unit_price", value)
+                                )
+                              }
                               className="w-full bg-white border border-[#E5E5E5] rounded px-2 py-1 text-sm text-[#000000] text-right focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                              placeholder="0.00"
+                              placeholder="0,00"
                             />
                           </td>
                           <td className="p-2 text-right font-semibold">

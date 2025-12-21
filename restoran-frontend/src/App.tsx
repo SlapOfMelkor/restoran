@@ -16,6 +16,7 @@ import { ProductsPage } from "./pages/ProductsPage";
 import { BankStatusPage } from "./pages/BankStatusPage";
 import { MonthlyReportsPage } from "./pages/MonthlyReportsPage";
 import { WastePage } from "./pages/WastePage";
+import { ProducePage } from "./pages/ProducePage";
 
 export const App: React.FC = () => {
   return (
@@ -160,6 +161,17 @@ export const App: React.FC = () => {
           <ProtectedRoute>
             <MobileLayout>
               <WastePage />
+            </MobileLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/produce"
+        element={
+          <ProtectedRoute>
+            <MobileLayout>
+              <ProducePage />
             </MobileLayout>
           </ProtectedRoute>
         }

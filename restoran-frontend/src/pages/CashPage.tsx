@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
+import { handleNumberInputChange, getNumberValue } from "../utils/numberFormat";
 
 interface CashMovement {
   id: number;
@@ -110,7 +111,9 @@ export const CashPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.amount || parseFloat(formData.amount) <= 0) {
+    const amountNum = getNumberValue(formData.amount);
+    
+    if (!formData.amount || amountNum <= 0) {
       alert("Lütfen geçerli bir tutar girin");
       return;
     }
@@ -119,7 +122,7 @@ export const CashPage: React.FC = () => {
     try {
       const payload: any = {
         method: formData.method,
-        amount: parseFloat(formData.amount),
+        amount: amountNum,
         description: formData.description,
       };
 
@@ -221,15 +224,15 @@ export const CashPage: React.FC = () => {
                 Tutar (TL)
               </label>
               <input
-                type="number"
-                step="0.01"
-                min="0.01"
+                type="text"
                 value={formData.amount}
                 onChange={(e) =>
-                  setFormData({ ...formData, amount: e.target.value })
+                  handleNumberInputChange(e, (value) =>
+                    setFormData({ ...formData, amount: value })
+                  )
                 }
                 className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                placeholder="0.00"
+                placeholder="0,00"
                 required
               />
             </div>

@@ -19,7 +19,8 @@ type ExpenseCategoryResponse struct {
 }
 
 type CreateExpenseCategoryRequest struct {
-	Name string `json:"name"`
+	Name     string `json:"name"`
+	BranchID *uint  `json:"branch_id"` // super_admin için opsiyonel
 }
 
 type UpdateExpenseCategoryRequest struct {
@@ -146,8 +147,13 @@ func resolveBranchIDFromQueryOrRole(c *fiber.Ctx) (uint, error) {
 // GET /api/expense-categories  (auth olan herkes)
 func ListExpenseCategoriesHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		branchID, err := resolveBranchIDFromQueryOrRole(c)
+		if err != nil {
+			return err
+		}
+
 		var cats []models.ExpenseCategory
-		if err := database.DB.Order("name asc").Find(&cats).Error; err != nil {
+		if err := database.DB.Where("branch_id = ?", branchID).Order("name asc").Find(&cats).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Kategoriler listelenemedi")
 		}
 
@@ -175,7 +181,21 @@ func CreateExpenseCategoryHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Name zorunlu")
 		}
 
-		cat := models.ExpenseCategory{Name: body.Name}
+		branchID, err := resolveBranchIDFromBodyOrRole(c, body.BranchID)
+		if err != nil {
+			return err
+		}
+
+		// Aynı şubede aynı isimde kategori var mı kontrol et
+		var existingCat models.ExpenseCategory
+		if err := database.DB.Where("branch_id = ? AND name = ?", branchID, body.Name).First(&existingCat).Error; err == nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Bu şubede bu isimde bir kategori zaten var")
+		}
+
+		cat := models.ExpenseCategory{
+			BranchID: branchID,
+			Name:     body.Name,
+		}
 		if err := database.DB.Create(&cat).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Kategori oluşturulamadı")
 		}
@@ -197,6 +217,17 @@ func UpdateExpenseCategoryHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusNotFound, "Kategori bulunamadı")
 		}
 
+		// Şube kontrolü - branch_admin sadece kendi şubesine erişebilir
+		roleVal := c.Locals(auth.CtxUserRoleKey)
+		role, ok := roleVal.(models.UserRole)
+		if ok && role == models.RoleBranchAdmin {
+			bVal := c.Locals(auth.CtxBranchIDKey)
+			bPtr, ok := bVal.(*uint)
+			if !ok || bPtr == nil || *bPtr != cat.BranchID {
+				return fiber.NewError(fiber.StatusForbidden, "Bu kategoriye erişim yetkiniz yok")
+			}
+		}
+
 		var body UpdateExpenseCategoryRequest
 		if err := c.BodyParser(&body); err != nil {
 			return fiber.NewError(fiber.StatusBadRequest, "Geçersiz veri")
@@ -206,6 +237,11 @@ func UpdateExpenseCategoryHandler() fiber.Handler {
 			name := strings.TrimSpace(*body.Name)
 			if name == "" {
 				return fiber.NewError(fiber.StatusBadRequest, "Name boş olamaz")
+			}
+			// Aynı şubede aynı isimde başka kategori var mı kontrol et
+			var existingCat models.ExpenseCategory
+			if err := database.DB.Where("branch_id = ? AND name = ? AND id != ?", cat.BranchID, name, id).First(&existingCat).Error; err == nil {
+				return fiber.NewError(fiber.StatusBadRequest, "Bu şubede bu isimde bir kategori zaten var")
 			}
 			cat.Name = name
 		}
@@ -226,7 +262,23 @@ func DeleteExpenseCategoryHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		id := c.Params("id")
 
-		if err := database.DB.Delete(&models.ExpenseCategory{}, "id = ?", id).Error; err != nil {
+		var cat models.ExpenseCategory
+		if err := database.DB.First(&cat, "id = ?", id).Error; err != nil {
+			return fiber.NewError(fiber.StatusNotFound, "Kategori bulunamadı")
+		}
+
+		// Şube kontrolü - branch_admin sadece kendi şubesine erişebilir
+		roleVal := c.Locals(auth.CtxUserRoleKey)
+		role, ok := roleVal.(models.UserRole)
+		if ok && role == models.RoleBranchAdmin {
+			bVal := c.Locals(auth.CtxBranchIDKey)
+			bPtr, ok := bVal.(*uint)
+			if !ok || bPtr == nil || *bPtr != cat.BranchID {
+				return fiber.NewError(fiber.StatusForbidden, "Bu kategoriye erişim yetkiniz yok")
+			}
+		}
+
+		if err := database.DB.Delete(&cat).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Kategori silinemedi")
 		}
 
@@ -461,6 +513,239 @@ func MonthlyExpenseSummaryHandler() fiber.Handler {
 			}
 			resp.Items = append(resp.Items, item)
 			resp.GrandTotal += r.Total
+		}
+
+		return c.JSON(resp)
+	}
+}
+
+// -------------------------
+// Expense Payment Types
+// -------------------------
+
+type CreateExpensePaymentRequest struct {
+	CategoryID  uint    `json:"category_id"`
+	Amount      float64 `json:"amount"`
+	Date        string  `json:"date"` // "2025-12-09"
+	Description string  `json:"description"`
+	BranchID    *uint   `json:"branch_id"` // super_admin için opsiyonel
+}
+
+type ExpensePaymentResponse struct {
+	ID           uint    `json:"id"`
+	BranchID     uint    `json:"branch_id"`
+	CategoryID   uint    `json:"category_id"`
+	CategoryName string  `json:"category_name"`
+	Amount       float64 `json:"amount"`
+	Date         string  `json:"date"`
+	Description  string  `json:"description"`
+}
+
+type CategoryExpenseBalanceResponse struct {
+	CategoryID    uint    `json:"category_id"`
+	CategoryName  string  `json:"category_name"`
+	TotalExpenses float64 `json:"total_expenses"`
+	TotalPayments float64 `json:"total_payments"`
+	RemainingDebt float64 `json:"remaining_debt"`
+}
+
+type AllCategoriesBalanceResponse struct {
+	BranchID   uint                            `json:"branch_id"`
+	Categories []CategoryExpenseBalanceResponse `json:"categories"`
+}
+
+// -------------------------
+// Expense Payment Handlers
+// -------------------------
+
+// POST /api/expense-payments
+func CreateExpensePaymentHandler() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		var body CreateExpensePaymentRequest
+		if err := c.BodyParser(&body); err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Geçersiz istek gövdesi")
+		}
+
+		if body.CategoryID == 0 || body.Amount <= 0 {
+			return fiber.NewError(fiber.StatusBadRequest, "category_id ve amount zorunlu, amount > 0 olmalı")
+		}
+
+		branchID, err := resolveBranchIDFromBodyOrRole(c, body.BranchID)
+		if err != nil {
+			return err
+		}
+
+		d, err := time.Parse("2006-01-02", body.Date)
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Tarih formatı 'YYYY-MM-DD' olmalı")
+		}
+
+		// Kategori var mı?
+		var cat models.ExpenseCategory
+		if err := database.DB.First(&cat, "id = ?", body.CategoryID).Error; err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Kategori bulunamadı")
+		}
+
+		payment := models.ExpensePayment{
+			BranchID:    branchID,
+			CategoryID:  body.CategoryID,
+			Amount:      body.Amount,
+			Date:        d,
+			Description: body.Description,
+		}
+
+		if err := database.DB.Create(&payment).Error; err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Ödeme kaydedilemedi")
+		}
+
+		// Audit log yaz
+		userID, userName, _, err := getUserInfo(c)
+		if err == nil {
+			afterData := map[string]interface{}{
+				"id":          payment.ID,
+				"branch_id":   payment.BranchID,
+				"category_id": payment.CategoryID,
+				"amount":      payment.Amount,
+				"date":        payment.Date.Format("2006-01-02"),
+				"description": payment.Description,
+			}
+			branchIDForLog := &payment.BranchID
+			if logErr := audit.WriteLog(audit.LogOptions{
+				BranchID:    branchIDForLog,
+				UserID:      userID,
+				UserName:    userName,
+				EntityType:  "expense_payment",
+				EntityID:    payment.ID,
+				Action:      models.AuditActionCreate,
+				Description: fmt.Sprintf("Gider kategorisi ödemesi eklendi: %s - %.2f TL", cat.Name, payment.Amount),
+				Before:      nil,
+				After:       afterData,
+			}); logErr != nil {
+				fmt.Printf("Audit log yazılamadı: %v\n", logErr)
+			}
+		}
+
+		return c.Status(fiber.StatusCreated).JSON(ExpensePaymentResponse{
+			ID:           payment.ID,
+			BranchID:     payment.BranchID,
+			CategoryID:   payment.CategoryID,
+			CategoryName: cat.Name,
+			Amount:       payment.Amount,
+			Date:         payment.Date.Format("2006-01-02"),
+			Description:  payment.Description,
+		})
+	}
+}
+
+// GET /api/expense-payments?branch_id=...&category_id=...&from=...&to=...
+func ListExpensePaymentsHandler() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		branchID, err := resolveBranchIDFromQueryOrRole(c)
+		if err != nil {
+			return err
+		}
+
+		categoryIDStr := c.Query("category_id")
+		fromStr := c.Query("from")
+		toStr := c.Query("to")
+
+		dbq := database.DB.Model(&models.ExpensePayment{}).
+			Preload("Category").
+			Where("branch_id = ?", branchID)
+
+		if categoryIDStr != "" {
+			var cid uint
+			if _, err := fmt.Sscan(categoryIDStr, &cid); err != nil || cid == 0 {
+				return fiber.NewError(fiber.StatusBadRequest, "category_id geçersiz")
+			}
+			dbq = dbq.Where("category_id = ?", cid)
+		}
+
+		if fromStr != "" {
+			from, err := time.Parse("2006-01-02", fromStr)
+			if err != nil {
+				return fiber.NewError(fiber.StatusBadRequest, "from geçersiz")
+			}
+			dbq = dbq.Where("date >= ?", from)
+		}
+
+		if toStr != "" {
+			to, err := time.Parse("2006-01-02", toStr)
+			if err != nil {
+				return fiber.NewError(fiber.StatusBadRequest, "to geçersiz")
+			}
+			dbq = dbq.Where("date <= ?", to)
+		}
+
+		var rows []models.ExpensePayment
+		if err := dbq.Order("date desc, id desc").Find(&rows).Error; err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Ödemeler listelenemedi")
+		}
+
+		resp := make([]ExpensePaymentResponse, 0, len(rows))
+		for _, r := range rows {
+			resp = append(resp, ExpensePaymentResponse{
+				ID:           r.ID,
+				BranchID:     r.BranchID,
+				CategoryID:   r.CategoryID,
+				CategoryName: r.Category.Name,
+				Amount:       r.Amount,
+				Date:         r.Date.Format("2006-01-02"),
+				Description:  r.Description,
+			})
+		}
+
+		return c.JSON(resp)
+	}
+}
+
+// GET /api/expense-payments/balance-by-category?branch_id=...
+func GetCategoryExpenseBalanceHandler() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		branchID, err := resolveBranchIDFromQueryOrRole(c)
+		if err != nil {
+			return err
+		}
+
+		// Şubeye ait tüm kategorileri çek
+		var categories []models.ExpenseCategory
+		if err := database.DB.Where("branch_id = ?", branchID).Order("name asc").Find(&categories).Error; err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Kategoriler yüklenemedi")
+		}
+
+		resp := AllCategoriesBalanceResponse{
+			BranchID:   branchID,
+			Categories: make([]CategoryExpenseBalanceResponse, 0, len(categories)),
+		}
+
+		for _, cat := range categories {
+			// Kategoriye ait toplam giderler
+			var totalExpenses float64
+			if err := database.DB.Model(&models.Expense{}).
+				Where("branch_id = ? AND category_id = ?", branchID, cat.ID).
+				Select("COALESCE(SUM(amount), 0)").
+				Scan(&totalExpenses).Error; err != nil {
+				return fiber.NewError(fiber.StatusInternalServerError, "Giderler hesaplanamadı")
+			}
+
+			// Kategoriye ait toplam ödemeler
+			var totalPayments float64
+			if err := database.DB.Model(&models.ExpensePayment{}).
+				Where("branch_id = ? AND category_id = ?", branchID, cat.ID).
+				Select("COALESCE(SUM(amount), 0)").
+				Scan(&totalPayments).Error; err != nil {
+				return fiber.NewError(fiber.StatusInternalServerError, "Ödemeler hesaplanamadı")
+			}
+
+			remainingDebt := totalExpenses - totalPayments
+
+			resp.Categories = append(resp.Categories, CategoryExpenseBalanceResponse{
+				CategoryID:    cat.ID,
+				CategoryName:  cat.Name,
+				TotalExpenses: totalExpenses,
+				TotalPayments: totalPayments,
+				RemainingDebt: remainingDebt,
+			})
 		}
 
 		return c.JSON(resp)

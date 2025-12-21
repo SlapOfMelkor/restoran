@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
+import { handleNumberInputChange, getNumberValue } from "../utils/numberFormat";
+
+interface ExpenseCategory {
+  id: number;
+  name: string;
+}
 
 interface Expense {
   id: number;
@@ -12,44 +18,48 @@ interface Expense {
   description: string;
 }
 
-interface ExpenseWithLog extends Expense {
-  created_by_user_id?: number;
-  created_by_user_name?: string;
-  created_at?: string;
-  log_id?: number;
-  is_undone?: boolean;
-}
-
-interface ExpenseCategory {
+interface ExpensePayment {
   id: number;
-  name: string;
-}
-
-interface AuditLog {
-  id: number;
-  created_at: string;
-  branch_id: number | null;
-  user_id: number;
-  user_name: string;
-  entity_type: string;
-  entity_id: number;
-  action: "create" | "update" | "delete" | "undo";
+  branch_id: number;
+  category_id: number;
+  category_name: string;
+  amount: number;
+  date: string;
   description: string;
-  is_undone: boolean;
-  undone_by: number | null;
-  undone_at: string | null;
+}
+
+interface CategoryBalance {
+  category_id: number;
+  category_name: string;
+  total_expenses: number;
+  total_payments: number;
+  remaining_debt: number;
+}
+
+interface AllCategoriesBalance {
+  branch_id: number;
+  categories: CategoryBalance[];
 }
 
 export const ExpensesPage: React.FC = () => {
   const { user, selectedBranchId } = useAuth();
-  const [expenses, setExpenses] = useState<ExpenseWithLog[]>([]);
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
-  const [shipments, setShipments] = useState<any[]>([]);
+  const [categoryBalances, setCategoryBalances] = useState<CategoryBalance[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expensePayments, setExpensePayments] = useState<ExpensePayment[]>([]);
   const [loading, setLoading] = useState(false);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
-  const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [categoryFormData, setCategoryFormData] = useState({ name: "" });
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [expenseFormData, setExpenseFormData] = useState({
+    category_id: "",
+    date: new Date().toISOString().split("T")[0],
+    amount: "",
+    description: "",
+  });
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [paymentFormData, setPaymentFormData] = useState({
     category_id: "",
     date: new Date().toISOString().split("T")[0],
     amount: "",
@@ -59,81 +69,70 @@ export const ExpensesPage: React.FC = () => {
 
   const fetchCategories = async () => {
     try {
-      const res = await apiClient.get("/expense-categories");
+      const params: any = {};
+      if (user?.role === "super_admin" && selectedBranchId) {
+        params.branch_id = selectedBranchId;
+      }
+      const res = await apiClient.get("/expense-categories", { params });
       setCategories(res.data);
     } catch (err) {
       console.error("Kategoriler yüklenemedi:", err);
     }
   };
 
-  const fetchShipments = async () => {
-    try {
-      const params: any = {};
-      if (user?.role === "super_admin" && selectedBranchId) {
-        params.branch_id = selectedBranchId;
-      }
-      const res = await apiClient.get("/shipments", { params });
-      setShipments(res.data || []);
-    } catch (err) {
-      console.error("Sevkiyatlar yüklenemedi:", err);
-    }
-  };
-
-  const fetchExpenses = async () => {
+  const fetchCategoryBalances = async () => {
     setLoading(true);
     try {
       const params: any = {};
       if (user?.role === "super_admin" && selectedBranchId) {
         params.branch_id = selectedBranchId;
       }
-      const expensesRes = await apiClient.get("/expenses", { params });
-      
-      // Audit log'ları çek
-      const logParams: any = {
-        entity_type: "expense",
-      };
-      if (user?.role === "super_admin") {
-        if (selectedBranchId) {
-          logParams.branch_id = selectedBranchId;
-        }
-        // branch_id yoksa tüm şubeler için log'lar çekilir (filtre yok)
-      } else if (user?.role === "branch_admin" && user.branch_id) {
-        // Branch admin için kendi branch_id'sini kullan
-        logParams.branch_id = user.branch_id;
-      }
-      const logsRes = await apiClient.get("/audit-logs", { params: logParams });
-      
-      // Expenses'i log'larla birleştir
-      const expensesWithLogs: ExpenseWithLog[] = expensesRes.data.map((exp: Expense) => {
-        const createLog = logsRes.data.find(
-          (log: AuditLog) =>
-            log.entity_type === "expense" &&
-            log.entity_id === exp.id &&
-            log.action === "create"
-        );
-        
-        return {
-          ...exp,
-          created_by_user_id: createLog?.user_id,
-          created_by_user_name: createLog?.user_name,
-          created_at: createLog?.created_at,
-          log_id: createLog?.id,
-          is_undone: createLog?.is_undone || false,
-        };
-      });
-      
-      setExpenses(expensesWithLogs);
+      const res = await apiClient.get("/expense-payments/balance-by-category", { params });
+      setCategoryBalances(res.data.categories || []);
     } catch (err) {
-      console.error("Giderler yüklenemedi:", err);
+      console.error("Kategori bakiye bilgisi yüklenemedi:", err);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchExpenses = async (categoryId?: number) => {
+    try {
+      const params: any = {};
+      if (user?.role === "super_admin" && selectedBranchId) {
+        params.branch_id = selectedBranchId;
+      }
+      if (categoryId) {
+        params.category_id = categoryId;
+      }
+      const res = await apiClient.get("/expenses", { params });
+      setExpenses(res.data || []);
+    } catch (err) {
+      console.error("Giderler yüklenemedi:", err);
+    }
+  };
+
+  const fetchExpensePayments = async (categoryId?: number) => {
+    try {
+      const params: any = {};
+      if (user?.role === "super_admin" && selectedBranchId) {
+        params.branch_id = selectedBranchId;
+      }
+      if (categoryId) {
+        params.category_id = categoryId;
+      }
+      const res = await apiClient.get("/expense-payments", { params });
+      setExpensePayments(res.data || []);
+    } catch (err) {
+      console.error("Gider ödemeleri yüklenemedi:", err);
+    }
+  };
+
   useEffect(() => {
     fetchCategories();
+    fetchCategoryBalances();
     fetchExpenses();
-    fetchShipments();
+    fetchExpensePayments();
   }, [user, selectedBranchId]);
 
   const handleCategorySubmit = async (e: React.FormEvent) => {
@@ -145,13 +144,20 @@ export const ExpensesPage: React.FC = () => {
 
     setSubmitting(true);
     try {
-      await apiClient.post("/admin/expense-categories", {
+      const payload: any = {
         name: categoryFormData.name.trim(),
-      });
+      };
+      
+      if (user?.role === "super_admin" && selectedBranchId) {
+        payload.branch_id = selectedBranchId;
+      }
+
+      await apiClient.post("/admin/expense-categories", payload);
       alert("Kategori başarıyla oluşturuldu");
       setCategoryFormData({ name: "" });
       setShowCategoryForm(false);
       fetchCategories();
+      fetchCategoryBalances();
     } catch (err: any) {
       alert(err.response?.data?.error || "Kategori oluşturulamadı");
     } finally {
@@ -161,10 +167,12 @@ export const ExpensesPage: React.FC = () => {
 
   const handleExpenseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const amountNum = getNumberValue(expenseFormData.amount);
+
     if (
       !expenseFormData.category_id ||
       !expenseFormData.amount ||
-      parseFloat(expenseFormData.amount) <= 0
+      amountNum <= 0
     ) {
       alert("Lütfen kategori seçin ve geçerli bir tutar girin");
       return;
@@ -175,7 +183,7 @@ export const ExpensesPage: React.FC = () => {
       const payload: any = {
         category_id: parseInt(expenseFormData.category_id),
         date: expenseFormData.date,
-        amount: parseFloat(expenseFormData.amount),
+        amount: amountNum,
         description: expenseFormData.description,
       };
 
@@ -193,6 +201,7 @@ export const ExpensesPage: React.FC = () => {
       });
       setShowExpenseForm(false);
       fetchExpenses();
+      fetchCategoryBalances();
     } catch (err: any) {
       alert(err.response?.data?.error || "Gider eklenemedi");
     } finally {
@@ -200,42 +209,83 @@ export const ExpensesPage: React.FC = () => {
     }
   };
 
-  const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
-  const totalShipmentCosts = shipments.reduce((sum, sh) => sum + (sh.total_amount || 0), 0);
-  const totalAllCosts = totalExpenses + totalShipmentCosts;
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amountNum = getNumberValue(paymentFormData.amount);
 
-  const handleUndo = async (logId: number, _expenseId: number) => {
-    if (!confirm("Bu işlemi geri almak istediğinize emin misiniz?")) {
+    if (
+      !paymentFormData.category_id ||
+      !paymentFormData.amount ||
+      amountNum <= 0
+    ) {
+      alert("Lütfen kategori seçin ve geçerli bir tutar girin");
       return;
     }
 
+    setSubmitting(true);
     try {
-      await apiClient.post(`/audit-logs/${logId}/undo`);
-      alert("İşlem başarıyla geri alındı");
-      fetchExpenses();
+      const payload: any = {
+        category_id: parseInt(paymentFormData.category_id),
+        date: paymentFormData.date,
+        amount: amountNum,
+        description: paymentFormData.description,
+      };
+
+      if (user?.role === "super_admin" && selectedBranchId) {
+        payload.branch_id = selectedBranchId;
+      }
+
+      await apiClient.post("/expense-payments", payload);
+      alert("Ödeme başarıyla eklendi");
+      setPaymentFormData({
+        category_id: "",
+        date: new Date().toISOString().split("T")[0],
+        amount: "",
+        description: "",
+      });
+      setShowPaymentForm(false);
+      fetchExpensePayments();
+      fetchCategoryBalances();
     } catch (err: any) {
-      alert(err.response?.data?.error || "Geri alma işlemi başarısız");
+      alert(err.response?.data?.error || "Ödeme eklenemedi");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const canUndo = (expense: ExpenseWithLog): boolean => {
-    if (!expense.log_id || expense.is_undone) {
-      return false;
-    }
-    // Super admin her şeyi geri alabilir
-    if (user?.role === "super_admin") {
-      return true;
-    }
-    // Branch admin sadece kendi işlemlerini geri alabilir
-    return expense.created_by_user_id === user?.id;
+  const getCategoryExpenses = (categoryId: number) => {
+    return expenses.filter((exp) => exp.category_id === categoryId);
   };
 
+  const getCategoryPayments = (categoryId: number) => {
+    return expensePayments.filter((pay) => pay.category_id === categoryId);
+  };
+
+  const openExpenseFormForCategory = (categoryId: number) => {
+    setExpenseFormData({
+      category_id: categoryId.toString(),
+      date: new Date().toISOString().split("T")[0],
+      amount: "",
+      description: "",
+    });
+    setShowExpenseForm(true);
+  };
+
+  const openPaymentFormForCategory = (categoryId: number) => {
+    setPaymentFormData({
+      category_id: categoryId.toString(),
+      date: new Date().toISOString().split("T")[0],
+      amount: "",
+      description: "",
+    });
+    setShowPaymentForm(true);
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs text-[#555555]">
-          Gider kayıtları ve işlem geçmişi
+          Kategori bazlı gider ve borç yönetimi
         </p>
         <div className="flex gap-2">
           {user?.role === "super_admin" && (
@@ -246,12 +296,6 @@ export const ExpensesPage: React.FC = () => {
               {showCategoryForm ? "Formu Gizle" : "Kategori Ekle"}
             </button>
           )}
-          <button
-            onClick={() => setShowExpenseForm(!showExpenseForm)}
-            className="px-4 py-2 rounded-lg text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
-          >
-            {showExpenseForm ? "Formu Gizle" : "Gider Ekle"}
-          </button>
         </div>
       </div>
 
@@ -270,7 +314,7 @@ export const ExpensesPage: React.FC = () => {
                   setCategoryFormData({ name: e.target.value })
                 }
                 className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                placeholder="Örn: Manav Gideri"
+                placeholder="Örn: Manav, Kasap, Fırın"
                 required
               />
             </div>
@@ -297,9 +341,223 @@ export const ExpensesPage: React.FC = () => {
         </div>
       )}
 
+      {/* Kategori Kutucukları */}
+      {loading ? (
+        <p className="text-xs text-[#222222]">Yükleniyor...</p>
+      ) : categoryBalances.length === 0 ? (
+        <p className="text-xs text-[#222222]">Henüz kategori yok</p>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {categoryBalances.map((balance) => {
+            const categoryExpenses = getCategoryExpenses(balance.category_id);
+            const categoryPayments = getCategoryPayments(balance.category_id);
+            const isSelected = selectedCategoryId === balance.category_id;
+
+            return (
+              <div
+                key={balance.category_id}
+                className={`bg-white rounded-xl border-2 ${
+                  isSelected ? "border-[#8F1A9F]" : "border-[#E5E5E5]"
+                } p-4 shadow-sm`}
+              >
+                {/* Kategori Başlığı */}
+                <div className="mb-3">
+                  <h3 className="text-sm font-bold text-[#8F1A9F] mb-2">
+                    {balance.category_name}
+                  </h3>
+
+                  {/* Borç Özeti */}
+                  <div className="space-y-1 mb-3">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-[#555555]">Toplam Gider:</span>
+                      <span className="font-semibold text-red-600">
+                        {balance.total_expenses.toFixed(2)} TL
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-[#555555]">Yapılan Ödeme:</span>
+                      <span className="font-semibold text-green-600">
+                        {balance.total_payments.toFixed(2)} TL
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs border-t pt-1">
+                      <span className="text-[#555555] font-semibold">Kalan Borç:</span>
+                      <span
+                        className={`font-bold ${
+                          balance.remaining_debt >= 0 ? "text-red-600" : "text-green-600"
+                        }`}
+                      >
+                        {balance.remaining_debt.toFixed(2)} TL
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Gider Listesi (Özet) */}
+                  {categoryExpenses.length > 0 && (
+                    <div className="mb-3 max-h-32 overflow-y-auto">
+                      <div className="text-xs font-semibold text-[#555555] mb-1">
+                        Giderler:
+                      </div>
+                      <div className="space-y-1">
+                        {categoryExpenses.slice(0, 3).map((exp) => (
+                          <div
+                            key={exp.id}
+                            className="text-xs text-[#222222] flex justify-between"
+                          >
+                            <span>{exp.date}</span>
+                            <span className="font-medium">
+                              {exp.amount.toFixed(2)} TL
+                            </span>
+                          </div>
+                        ))}
+                        {categoryExpenses.length > 3 && (
+                          <div className="text-xs text-[#555555] italic">
+                            +{categoryExpenses.length - 3} daha...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Ödeme Listesi (Özet) */}
+                  {categoryPayments.length > 0 && (
+                    <div className="mb-3 max-h-32 overflow-y-auto">
+                      <div className="text-xs font-semibold text-[#555555] mb-1">
+                        Ödemeler:
+                      </div>
+                      <div className="space-y-1">
+                        {categoryPayments.slice(0, 3).map((pay) => (
+                          <div
+                            key={pay.id}
+                            className="text-xs text-green-600 flex justify-between"
+                          >
+                            <span>{pay.date}</span>
+                            <span className="font-medium">
+                              {pay.amount.toFixed(2)} TL
+                            </span>
+                          </div>
+                        ))}
+                        {categoryPayments.length > 3 && (
+                          <div className="text-xs text-[#555555] italic">
+                            +{categoryPayments.length - 3} daha...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Butonlar */}
+                  <div className="flex flex-col gap-2 mt-3">
+                    <button
+                      onClick={() => openExpenseFormForCategory(balance.category_id)}
+                      className="px-3 py-1.5 rounded text-xs transition-colors bg-red-500 hover:bg-red-600 text-white"
+                    >
+                      Borç Ekle
+                    </button>
+                    <button
+                      onClick={() => openPaymentFormForCategory(balance.category_id)}
+                      className="px-3 py-1.5 rounded text-xs transition-colors bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      Ödeme Yap
+                    </button>
+                    <button
+                      onClick={() =>
+                        setSelectedCategoryId(
+                          isSelected ? null : balance.category_id
+                        )
+                      }
+                      className="px-3 py-1.5 rounded text-xs transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
+                    >
+                      {isSelected ? "Detayları Gizle" : "Detayları Göster"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Seçili Kategori Detayları */}
+      {selectedCategoryId && (
+        <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
+          <h2 className="text-sm font-semibold mb-3">
+            {
+              categoryBalances.find((b) => b.category_id === selectedCategoryId)
+                ?.category_name
+            }{" "}
+            Detayları
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Giderler */}
+            <div>
+              <h3 className="text-xs font-semibold mb-2 text-red-600">Giderler</h3>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {getCategoryExpenses(selectedCategoryId).length === 0 ? (
+                  <p className="text-xs text-[#555555]">Henüz gider yok</p>
+                ) : (
+                  getCategoryExpenses(selectedCategoryId).map((exp) => (
+                    <div
+                      key={exp.id}
+                      className="p-2 bg-white rounded border border-[#E5E5E5]"
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="text-xs font-medium">{exp.date}</div>
+                          {exp.description && (
+                            <div className="text-xs text-[#555555]">
+                              {exp.description}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-xs font-bold text-red-600">
+                          {exp.amount.toFixed(2)} TL
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Ödemeler */}
+            <div>
+              <h3 className="text-xs font-semibold mb-2 text-green-600">Ödemeler</h3>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {getCategoryPayments(selectedCategoryId).length === 0 ? (
+                  <p className="text-xs text-[#555555]">Henüz ödeme yok</p>
+                ) : (
+                  getCategoryPayments(selectedCategoryId).map((pay) => (
+                    <div
+                      key={pay.id}
+                      className="p-2 bg-white rounded border border-[#E5E5E5]"
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="text-xs font-medium">{pay.date}</div>
+                          {pay.description && (
+                            <div className="text-xs text-[#555555]">
+                              {pay.description}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-xs font-bold text-green-600">
+                          {pay.amount.toFixed(2)} TL
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Gider Ekleme Formu */}
       {showExpenseForm && (
         <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">Yeni Gider</h2>
+          <h2 className="text-sm font-semibold mb-3">Borç Ekle (Gider)</h2>
           <form onSubmit={handleExpenseSubmit} className="space-y-3">
             <div>
               <label className="block text-xs text-[#555555] mb-1">
@@ -347,18 +605,18 @@ export const ExpensesPage: React.FC = () => {
                   Tutar (TL)
                 </label>
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
+                  type="text"
                   value={expenseFormData.amount}
                   onChange={(e) =>
-                    setExpenseFormData({
-                      ...expenseFormData,
-                      amount: e.target.value,
-                    })
+                    handleNumberInputChange(e, (value) =>
+                      setExpenseFormData({
+                        ...expenseFormData,
+                        amount: value,
+                      })
+                    )
                   }
                   className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                  placeholder="0.00"
+                  placeholder="0,00"
                   required
                 />
               </div>
@@ -408,128 +666,117 @@ export const ExpensesPage: React.FC = () => {
         </div>
       )}
 
-      {/* Toplam Özet */}
-      <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-        <h2 className="text-sm font-semibold mb-3 text-[#8F1A9F]">Toplam Gider Özeti</h2>
-        <div className="grid grid-cols-3 gap-4">
-          <div>
-            <div className="text-xs text-[#222222] mb-1">Giderler</div>
-            <div className="text-lg font-bold text-red-400">
-              {totalExpenses.toFixed(2)} TL
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-[#222222] mb-1">Sevkiyat</div>
-            <div className="text-lg font-bold text-orange-400">
-              {totalShipmentCosts.toFixed(2)} TL
-            </div>
-          </div>
-          <div>
-            <div className="text-xs text-[#222222] mb-1">Toplam</div>
-            <div className="text-lg font-bold text-yellow-400">
-              {totalAllCosts.toFixed(2)} TL
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Sevkiyat */}
-      <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Sevkiyat</h2>
-          {loading ? (
-            <p className="text-xs text-[#222222]">Yükleniyor...</p>
-          ) : shipments.length === 0 ? (
-            <p className="text-xs text-[#222222]">Henüz sevkiyat kaydı yok</p>
-          ) : (
-            <div className="text-lg font-bold text-orange-400">
-              {totalShipmentCosts.toFixed(2)} TL
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold">Gider Kayıtları</h2>
-          {expenses.length > 0 && (
-            <div className="text-sm font-bold text-red-400">
-              Toplam: {totalExpenses.toFixed(2)} TL
-            </div>
-          )}
-        </div>
-        {loading ? (
-          <p className="text-xs text-[#222222]">Yükleniyor...</p>
-        ) : expenses.length === 0 ? (
-          <p className="text-xs text-[#222222]">Henüz gider kaydı yok</p>
-        ) : (
-          <div className="space-y-2">
-            {expenses.map((expense) => (
-              <div
-                key={expense.id}
-                className={`p-3 bg-white rounded-xl border ${
-                  expense.is_undone
-                    ? "border-[#CCCCCC] opacity-60"
-                    : "border-[#E5E5E5]"
-                } shadow-sm`}
+      {/* Ödeme Formu */}
+      {showPaymentForm && (
+        <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
+          <h2 className="text-sm font-semibold mb-3">Ödeme Yap</h2>
+          <form onSubmit={handlePaymentSubmit} className="space-y-3">
+            <div>
+              <label className="block text-xs text-[#555555] mb-1">
+                Kategori
+              </label>
+              <select
+                value={paymentFormData.category_id}
+                onChange={(e) =>
+                  setPaymentFormData({
+                    ...paymentFormData,
+                    category_id: e.target.value,
+                  })
+                }
+                className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                required
               >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium">{expense.category}</span>
-                      <span className="text-xs text-slate-500">•</span>
-                      <span className="text-xs text-[#222222]">
-                        {expense.date}
-                      </span>
-                      {expense.created_by_user_name && (
-                        <>
-                          <span className="text-xs text-slate-500">•</span>
-                          <span className="text-xs text-slate-300">
-                            👤 {expense.created_by_user_name}
-                          </span>
-                        </>
-                      )}
-                      {expense.is_undone && (
-                        <>
-                          <span className="text-xs text-slate-500">•</span>
-                          <span className="text-xs text-yellow-400">
-                            (Geri Alındı)
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    {expense.description && (
-                      <div className="text-xs text-[#222222]">
-                        {expense.description}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-sm font-semibold text-right">
-                      {expense.amount.toFixed(2)} TL
-                    </div>
-                    {expense.log_id && canUndo(expense) && (
-                      <button
-                        onClick={() =>
-                          handleUndo(expense.log_id!, expense.id)
-                        }
-                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors whitespace-nowrap"
-                      >
-                        Geri Al
-                      </button>
-                    )}
-                    {!expense.log_id && (
-                      <span className="text-xs text-slate-500 italic">
-                        Log yok
-                      </span>
-                    )}
-                  </div>
-                </div>
+                <option value="">Kategori seçin...</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-[#555555] mb-1">
+                  Tarih
+                </label>
+                <input
+                  type="date"
+                  value={paymentFormData.date}
+                  onChange={(e) =>
+                    setPaymentFormData({
+                      ...paymentFormData,
+                      date: e.target.value,
+                    })
+                  }
+                  className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                  required
+                />
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+              <div>
+                <label className="block text-xs text-[#555555] mb-1">
+                  Tutar (TL)
+                </label>
+                <input
+                  type="text"
+                  value={paymentFormData.amount}
+                  onChange={(e) =>
+                    handleNumberInputChange(e, (value) =>
+                      setPaymentFormData({
+                        ...paymentFormData,
+                        amount: value,
+                      })
+                    )
+                  }
+                  className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                  placeholder="0,00"
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs text-[#555555] mb-1">
+                Açıklama (Opsiyonel)
+              </label>
+              <input
+                type="text"
+                value={paymentFormData.description}
+                onChange={(e) =>
+                  setPaymentFormData({
+                    ...paymentFormData,
+                    description: e.target.value,
+                  })
+                }
+                className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                placeholder="Açıklama..."
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-4 py-2 rounded text-sm transition-colors bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white"
+              >
+                {submitting ? "Ekleniyor..." : "Ödeme Yap"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPaymentForm(false);
+                  setPaymentFormData({
+                    category_id: "",
+                    date: new Date().toISOString().split("T")[0],
+                    amount: "",
+                    description: "",
+                  });
+                }}
+                className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+              >
+                İptal
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

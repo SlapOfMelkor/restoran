@@ -14,6 +14,7 @@ import (
 	"restoran-backend/internal/financial"
 	"restoran-backend/internal/inventory"
 	"restoran-backend/internal/models"
+	"restoran-backend/internal/produce"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -138,6 +139,17 @@ func main() {
 	protected.Post("/expenses", expense.CreateExpenseHandler())
 	protected.Get("/expenses", expense.ListExpensesHandler())
 	protected.Get("/expenses/summary/monthly", expense.MonthlyExpenseSummaryHandler())
+	protected.Post("/expense-payments", expense.CreateExpensePaymentHandler())
+	protected.Get("/expense-payments", expense.ListExpensePaymentsHandler())
+	protected.Get("/expense-payments/balance-by-category", expense.GetCategoryExpenseBalanceHandler())
+
+	// Manav yönetimi
+	protected.Post("/produce-purchases", produce.CreateProducePurchaseHandler())
+	protected.Get("/produce-purchases", produce.ListProducePurchasesHandler())
+	protected.Get("/produce-purchases/balance", produce.GetProduceBalanceHandler())
+	protected.Get("/produce-purchases/monthly-usage", produce.GetMonthlyProduceUsageHandler())
+	protected.Post("/produce-payments", produce.CreateProducePaymentHandler())
+	protected.Get("/produce-payments", produce.ListProducePaymentsHandler())
 
 	// Genel finansal özet (eski)
 	protected.Get("/financial-summary/monthly", financial.MonthlyFinancialSummaryHandler())

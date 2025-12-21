@@ -46,6 +46,8 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({ children }) => {
         return "Aylık Raporlama";
       case "/waste":
         return "Zayiat Yönetimi";
+      case "/produce":
+        return "Manav Yönetimi";
       default:
         return "İşlem Ekranı";
     }

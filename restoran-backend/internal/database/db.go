@@ -29,6 +29,7 @@ func Init(cfg *config.Config) {
 		&models.StockSnapshot{},  // Eski model (geriye dönük uyumluluk için)
 		&models.ExpenseCategory{},
 		&models.Expense{},
+		&models.ExpensePayment{},
 		&models.AuditLog{},
 		// Yeni modeller
 		&models.Shipment{},
@@ -38,6 +39,8 @@ func Init(cfg *config.Config) {
 		&models.BankTransaction{},
 		&models.MonthlyReport{},
 		&models.WasteEntry{},
+		&models.ProducePurchase{},
+		&models.ProducePayment{},
 	)
 	if err != nil {
 		log.Fatalf("AutoMigrate hatası: %v", err)
