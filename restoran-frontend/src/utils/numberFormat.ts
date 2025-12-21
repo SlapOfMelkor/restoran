@@ -1,6 +1,7 @@
 /**
  * Input değiştiğinde formatla ve state'i güncelle
- * Kullanıcı 300000 yazdığında -> "300.000,00" gösterir
+ * Kullanıcı yazarken binlik ayırıcıları gösterir
+ * 2000 -> "2.000,00", 5000000 -> "5.000.000,00"
  */
 export const handleNumberInputChange = (
   e: React.ChangeEvent<HTMLInputElement>,
@@ -14,30 +15,46 @@ export const handleNumberInputChange = (
     return;
   }
   
-  // Sadece rakamları al (nokta ve virgülü kaldır)
-  const digitsOnly = inputValue.replace(/\D/g, "");
+  // Binlik ayırıcı noktaları kaldır
+  let cleaned = inputValue.replace(/\./g, "");
   
-  if (digitsOnly === "") {
+  // Virgül varsa, virgülden önce ve sonraki kısımları ayır
+  const commaIndex = cleaned.indexOf(",");
+  let integerPart = "";
+  let decimalPart = "";
+  
+  if (commaIndex !== -1) {
+    integerPart = cleaned.substring(0, commaIndex).replace(/\D/g, "");
+    decimalPart = cleaned.substring(commaIndex + 1).replace(/\D/g, "").slice(0, 2); // En fazla 2 ondalık basamak
+  } else {
+    // Virgül yok, sadece rakamları al
+    integerPart = cleaned.replace(/\D/g, "");
+  }
+  
+  if (integerPart === "" && decimalPart === "") {
     setValue("");
     return;
   }
   
-  // Tam sayı olarak parse et (kullanıcı 300000 yazıyorsa 300000 TL demek istiyor)
-  const numValue = parseFloat(digitsOnly);
+  // Tam sayı kısmını parse et
+  const integer = integerPart === "" ? 0 : parseInt(integerPart);
   
-  if (isNaN(numValue) || numValue < 0) {
+  if (isNaN(integer) || integer < 0) {
     setValue("");
     return;
   }
   
-  // Türkçe format: binlik ayırıcı nokta, ondalık ayırıcı virgül
-  // Her zaman 2 ondalık basamak göster
-  const formatted = numValue.toLocaleString("tr-TR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  // Binlik ayırıcı ekle
+  const formattedInteger = integer.toLocaleString("tr-TR");
   
-  setValue(formatted);
+  // Ondalık kısım varsa ekle
+  if (commaIndex !== -1) {
+    const formattedDecimal = decimalPart.padEnd(2, "0");
+    setValue(`${formattedInteger},${formattedDecimal}`);
+  } else {
+    // Ondalık kısım yok, her zaman ",00" ekle
+    setValue(`${formattedInteger},00`);
+  }
 };
 
 /**
