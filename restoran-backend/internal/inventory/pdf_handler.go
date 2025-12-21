@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -15,6 +16,7 @@ func ParseShipmentPDFHandler() fiber.Handler {
 			Text string `json:"text"`
 		}
 		if err := c.BodyParser(&body); err != nil {
+			log.Printf("PDF parse request body parse error: %v", err)
 			return fiber.NewError(fiber.StatusBadRequest, "Geçersiz istek gövdesi. 'text' field'ı gönderilmelidir.")
 		}
 
@@ -23,11 +25,14 @@ func ParseShipmentPDFHandler() fiber.Handler {
 		}
 
 		// PDF text'ini parse et
+		log.Printf("PDF text parsing başladı, text uzunluğu: %d", len(body.Text))
 		result, err := ParseShipmentPDF([]byte(body.Text))
 		if err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("PDF text parse edilemedi: %v", err))
+			log.Printf("PDF parse error: %v", err)
+			return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("PDF parse edilemedi: %v", err))
 		}
 
+		log.Printf("PDF parse başarılı, %d ürün bulundu", len(result.Products))
 		return c.JSON(result)
 	}
 }

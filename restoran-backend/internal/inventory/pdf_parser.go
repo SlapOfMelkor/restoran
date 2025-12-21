@@ -89,17 +89,25 @@ func parsePDFTable(text string) ([]ParsedProduct, error) {
 	
 	lines := strings.Split(text, "\n")
 	
-	// Tablo başlığını bul
+	// Tablo başlığını bul (esnek arama)
 	tableStartIdx := -1
 	for i, line := range lines {
-		if strings.Contains(line, "Stok Kodu") && strings.Contains(line, "Ürün") {
+		lineLower := strings.ToLower(line)
+		// Farklı olası başlık formatlarını kontrol et
+		if (strings.Contains(lineLower, "stok") && strings.Contains(lineLower, "kod")) ||
+			(strings.Contains(lineLower, "ürün") && (strings.Contains(lineLower, "birim") || strings.Contains(lineLower, "fiyat"))) {
 			tableStartIdx = i
 			break
 		}
 	}
 	
 	if tableStartIdx == -1 {
-		return nil, fmt.Errorf("tablo başlığı bulunamadı")
+		// Debug için text'in ilk 500 karakterini göster
+		preview := text
+		if len(preview) > 500 {
+			preview = preview[:500] + "..."
+		}
+		return nil, fmt.Errorf("tablo başlığı bulunamadı. PDF formatı beklenen formatta olmayabilir. Text önizleme: %s", preview)
 	}
 	
 	// Tablo satırlarını işle (başlıktan sonraki satırlar)

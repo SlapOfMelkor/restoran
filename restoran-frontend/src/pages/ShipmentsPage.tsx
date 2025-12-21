@@ -360,9 +360,36 @@ export const ShipmentsPage: React.FC = () => {
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((item: any) => item.str).join(" ");
-        fullText += pageText + "\n";
+        // Text items'ları satır satır birleştir (daha iyi format için)
+        const pageLines: string[] = [];
+        let currentLine = "";
+        let lastY = -1;
+        
+        for (const item of textContent.items as any[]) {
+          const itemY = item.transform?.[5] || 0;
+          
+          // Yükseklik değiştiyse yeni satır
+          if (lastY !== -1 && Math.abs(itemY - lastY) > 5) {
+            if (currentLine.trim()) {
+              pageLines.push(currentLine.trim());
+            }
+            currentLine = "";
+          }
+          
+          currentLine += (item.str || "");
+          lastY = itemY;
+        }
+        
+        // Son satırı ekle
+        if (currentLine.trim()) {
+          pageLines.push(currentLine.trim());
+        }
+        
+        fullText += pageLines.join("\n") + "\n";
       }
+
+      console.log("PDF text extraction tamamlandı, text uzunluğu:", fullText.length);
+      console.log("PDF text önizleme (ilk 500 karakter):", fullText.substring(0, 500));
 
       // Backend'e text'i gönder ve parse et
       const response = await apiClient.post("/shipments/parse-pdf", { text: fullText });
@@ -378,10 +405,15 @@ export const ShipmentsPage: React.FC = () => {
         }
       }
       
-      alert(`${response.data.products?.length || 0} ürün bulundu`);
+      if (response.data.products && response.data.products.length > 0) {
+        alert(`${response.data.products.length} ürün bulundu`);
+      } else {
+        alert("PDF parse edildi ancak ürün bulunamadı. PDF formatını kontrol edin.");
+      }
     } catch (err: any) {
       console.error("PDF parsing hatası:", err);
-      alert(err.response?.data?.error || "PDF parse edilemedi");
+      const errorMessage = err.response?.data?.error || err.message || "PDF parse edilemedi";
+      alert(`PDF parse hatası: ${errorMessage}`);
     } finally {
       setParsingPdf(false);
       // Input'u temizle
