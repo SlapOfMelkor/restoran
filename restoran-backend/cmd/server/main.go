@@ -120,6 +120,7 @@ func main() {
 	protected.Post("/shipments", inventory.CreateShipmentHandler())
 	protected.Get("/shipments", inventory.ListShipmentsHandler())
 	protected.Post("/shipments/:id/stock", inventory.StockShipmentHandler())
+	protected.Post("/shipments/parse-pdf", inventory.ParseShipmentPDFHandler()) // PDF parsing endpoint
 
 	// Yeni stok sistemi
 	protected.Post("/stock-entries", inventory.CreateStockEntryHandler())

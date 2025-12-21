@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
+import * as pdfjsLib from "pdfjs-dist";
 
 interface Product {
   id: number;
   name: string;
   unit: string;
+  stock_code?: string;
 }
 
 interface ShipmentItem {
@@ -63,6 +65,9 @@ export const ShipmentsPage: React.FC = () => {
   });
   const [shipmentItems, setShipmentItems] = useState<ShipmentItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [showPdfUpload, setShowPdfUpload] = useState(false);
+  const [parsedPdfProducts, setParsedPdfProducts] = useState<any[]>([]);
+  const [parsingPdf, setParsingPdf] = useState(false);
 
   // localStorage'dan draft'ı yükle (ürünler yüklendikten sonra)
   useEffect(() => {
@@ -327,19 +332,191 @@ export const ShipmentsPage: React.FC = () => {
 
   const totalAmount = shipmentItems.reduce((sum, item) => sum + item.total_price, 0);
 
+  // PDF.js worker'ı yükle
+  useEffect(() => {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+  }, []);
+
+  // PDF yükleme ve parsing
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+      alert("Lütfen bir PDF dosyası seçin");
+      return;
+    }
+
+    setParsingPdf(true);
+    try {
+      // PDF'yi array buffer olarak oku
+      const arrayBuffer = await file.arrayBuffer();
+      
+      // PDF.js ile PDF'i yükle
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      
+      // Tüm sayfalardan text çıkar
+      let fullText = "";
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item: any) => item.str).join(" ");
+        fullText += pageText + "\n";
+      }
+
+      // Backend'e text'i gönder ve parse et
+      const response = await apiClient.post("/shipments/parse-pdf", { text: fullText });
+      setParsedPdfProducts(response.data.products || []);
+      
+      // PDF'deki tarihi formData'ya ekle (varsa)
+      if (response.data.date) {
+        // "12.12.2025" formatını "2025-12-12" formatına çevir
+        const dateParts = response.data.date.split(".");
+        if (dateParts.length === 3) {
+          const formattedDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
+          setFormData({ ...formData, date: formattedDate });
+        }
+      }
+      
+      alert(`${response.data.products?.length || 0} ürün bulundu`);
+    } catch (err: any) {
+      console.error("PDF parsing hatası:", err);
+      alert(err.response?.data?.error || "PDF parse edilemedi");
+    } finally {
+      setParsingPdf(false);
+      // Input'u temizle
+      e.target.value = "";
+    }
+  };
+
+  // Parse edilen ürünleri sevkiyat items'ına çevir
+  const useParsedProducts = () => {
+    if (parsedPdfProducts.length === 0) {
+      alert("Kullanılacak ürün bulunamadı");
+      return;
+    }
+
+    // Eşleşen ürünleri items'a ekle
+    const newItems: ShipmentItem[] = parsedPdfProducts
+      .filter((p: any) => p.matched_product_id) // Sadece eşleşen ürünler
+      .map((p: any) => ({
+        product_id: p.matched_product_id,
+        product_name: p.matched_product_name || p.product_name,
+        quantity: p.quantity,
+        unit_price: p.unit_price,
+        total_price: p.total_amount,
+      }));
+
+    if (newItems.length === 0) {
+      alert("Eşleşen ürün bulunamadı. Lütfen önce ürünleri sisteme ekleyin.");
+      return;
+    }
+
+    setShipmentItems([...shipmentItems, ...newItems]);
+    setShowPdfUpload(false);
+    setParsedPdfProducts([]);
+    setShowForm(true);
+    alert(`${newItems.length} ürün sevkiyata eklendi`);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs text-[#222222]">
           Ürün sevkiyatlarını yönetin ve stoka aktarın
         </p>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 rounded-lg text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
-        >
-          {showForm ? "Formu Gizle" : "Yeni Sevkiyat"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setShowPdfUpload(!showPdfUpload);
+              if (showPdfUpload) {
+                setParsedPdfProducts([]);
+              }
+            }}
+            className="px-4 py-2 rounded-lg text-sm transition-colors bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            {showPdfUpload ? "PDF Yüklemeyi İptal" : "PDF'den Yükle"}
+          </button>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="px-4 py-2 rounded-lg text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
+          >
+            {showForm ? "Formu Gizle" : "Yeni Sevkiyat"}
+          </button>
+        </div>
       </div>
+
+      {/* PDF Yükleme */}
+      {showPdfUpload && (
+        <div className="bg-white/80 rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
+          <h2 className="text-sm font-semibold mb-3">PDF'den Sevkiyat Yükle</h2>
+          
+          <div className="mb-4">
+            <label className="block text-xs text-[#555555] mb-2">
+              PDF Dosyası Seçin
+            </label>
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={handlePdfUpload}
+              disabled={parsingPdf}
+              className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+            />
+            {parsingPdf && (
+              <p className="text-xs text-[#555555] mt-2">PDF işleniyor...</p>
+            )}
+          </div>
+
+          {/* Parse edilen ürünler önizleme */}
+          {parsedPdfProducts.length > 0 && (
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">
+                  Bulunan Ürünler ({parsedPdfProducts.length})
+                </h3>
+                <button
+                  onClick={useParsedProducts}
+                  className="px-4 py-2 rounded-lg text-sm transition-colors bg-green-600 hover:bg-green-700 text-white"
+                >
+                  Eşleşen Ürünleri Ekle
+                </button>
+              </div>
+              
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {parsedPdfProducts.map((p: any, idx: number) => (
+                  <div
+                    key={idx}
+                    className={`p-3 rounded-xl border ${
+                      p.matched_product_id
+                        ? "border-green-300 bg-green-50"
+                        : "border-yellow-300 bg-yellow-50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">{p.product_name}</div>
+                        <div className="text-xs text-[#222222]">
+                          Stok Kodu: {p.stock_code || "Yok"} • Miktar: {p.quantity} {p.quantity_unit} • 
+                          Birim Fiyat: {p.unit_price.toFixed(2)} TL • Toplam: {p.total_amount.toFixed(2)} TL
+                        </div>
+                        {p.matched_product_id ? (
+                          <div className="text-xs text-green-600 mt-1">
+                            ✓ Eşleşti: {p.matched_product_name}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-yellow-600 mt-1">
+                            ⚠ Eşleşme bulunamadı - Lütfen ürünü sisteme ekleyin
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {showForm && (
         <div className="bg-white/80 rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">

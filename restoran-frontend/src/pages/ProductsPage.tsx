@@ -6,6 +6,7 @@ interface Product {
   id: number;
   name: string;
   unit: string;
+  stock_code?: string;
 }
 
 export const ProductsPage: React.FC = () => {
@@ -17,6 +18,7 @@ export const ProductsPage: React.FC = () => {
   const [productFormData, setProductFormData] = useState({
     name: "",
     unit: "",
+    stock_code: "",
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -45,19 +47,31 @@ export const ProductsPage: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const payload = {
+      const payload: any = {
         name: productFormData.name.trim(),
         unit: productFormData.unit.trim(),
       };
+      if (productFormData.stock_code.trim()) {
+        payload.stock_code = productFormData.stock_code.trim();
+      }
 
       if (editingProduct) {
-        await apiClient.put(`/admin/products/${editingProduct.id}`, payload);
+        const updatePayload: any = {
+          name: productFormData.name.trim(),
+          unit: productFormData.unit.trim(),
+        };
+        if (productFormData.stock_code.trim()) {
+          updatePayload.stock_code = productFormData.stock_code.trim();
+        } else {
+          updatePayload.stock_code = null; // Boş string'i null'a çevir (silme için)
+        }
+        await apiClient.put(`/admin/products/${editingProduct.id}`, updatePayload);
         alert("Ürün başarıyla güncellendi");
       } else {
         await apiClient.post("/admin/products", payload);
         alert("Ürün başarıyla oluşturuldu");
       }
-      setProductFormData({ name: "", unit: "" });
+      setProductFormData({ name: "", unit: "", stock_code: "" });
       setShowProductForm(false);
       setEditingProduct(null);
       fetchProducts();
@@ -87,6 +101,7 @@ export const ProductsPage: React.FC = () => {
     setProductFormData({
       name: prod.name,
       unit: prod.unit,
+      stock_code: prod.stock_code || "",
     });
     setShowProductForm(true);
   };
@@ -101,7 +116,7 @@ export const ProductsPage: React.FC = () => {
           onClick={() => {
             setShowProductForm(!showProductForm);
             setEditingProduct(null);
-            setProductFormData({ name: "", unit: "" });
+            setProductFormData({ name: "", unit: "", stock_code: "" });
           }}
           className="px-4 py-2 rounded-lg text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
         >
@@ -171,7 +186,7 @@ export const ProductsPage: React.FC = () => {
                 onClick={() => {
                   setShowProductForm(false);
                   setEditingProduct(null);
-                  setProductFormData({ name: "", unit: "" });
+                  setProductFormData({ name: "", unit: "", stock_code: "" });
                 }}
                 className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
               >
@@ -200,6 +215,9 @@ export const ProductsPage: React.FC = () => {
                   <div className="text-sm font-medium">{product.name}</div>
                   <div className="text-xs text-[#222222]">
                     Birim: {product.unit}
+                    {product.stock_code && (
+                      <> • Stok Kodu: {product.stock_code}</>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-2">
