@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
 import * as pdfjsLib from "pdfjs-dist";
+// Worker'ı import et - Vite bunu assets klasörüne kopyalar ve hash'li bir isim verir
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 interface Product {
   id: number;
@@ -334,9 +336,9 @@ export const ShipmentsPage: React.FC = () => {
 
   // PDF.js worker'ı yükle (local olarak)
   useEffect(() => {
-    // Worker'ı public klasöründen yükle
-    // Vite hem development hem production'da public klasörünü serve eder
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs`;
+    // Vite ?url suffix'i ile worker'ı import ettik, bu dosya build'e dahil edilir
+    // workerUrl, Vite tarafından optimize edilmiş asset URL'idir
+    pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
   }, []);
 
   // PDF yükleme ve parsing
