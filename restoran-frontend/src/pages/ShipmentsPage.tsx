@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
 import * as pdfjsLib from "pdfjs-dist";
+// Worker'ı import et - Vite ?url suffix'i ile worker'ı optimize eder
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 interface Product {
   id: number;
@@ -332,9 +334,10 @@ export const ShipmentsPage: React.FC = () => {
 
   const totalAmount = shipmentItems.reduce((sum, item) => sum + item.total_price, 0);
 
-  // PDF.js worker'ı yükle
+  // PDF.js worker'ı yükle (local olarak)
   useEffect(() => {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+    // Vite ?url suffix'i ile worker'ı import ettik, bu URL'i kullan
+    pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
   }, []);
 
   // PDF yükleme ve parsing
