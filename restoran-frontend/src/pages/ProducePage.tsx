@@ -22,12 +22,43 @@ interface ProducePurchase {
   description: string;
 }
 
+interface ProducePurchaseWithLog extends ProducePurchase {
+  created_by_user_id?: number;
+  created_by_user_name?: string;
+  created_at?: string;
+  log_id?: number;
+  is_undone?: boolean;
+}
+
 interface ProducePayment {
   id: number;
   branch_id: number;
   amount: number;
   date: string;
   description: string;
+}
+
+interface ProducePaymentWithLog extends ProducePayment {
+  created_by_user_id?: number;
+  created_by_user_name?: string;
+  created_at?: string;
+  log_id?: number;
+  is_undone?: boolean;
+}
+
+interface AuditLog {
+  id: number;
+  created_at: string;
+  branch_id: number | null;
+  user_id: number;
+  user_name: string;
+  entity_type: string;
+  entity_id: number;
+  action: "create" | "update" | "delete" | "undo";
+  description: string;
+  is_undone: boolean;
+  undone_by: number | null;
+  undone_at: string | null;
 }
 
 interface ProduceBalance {
@@ -56,8 +87,8 @@ interface MonthlyProduceUsageItem {
 export const ProducePage: React.FC = () => {
   const { user, selectedBranchId } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
-  const [purchases, setPurchases] = useState<ProducePurchase[]>([]);
-  const [payments, setPayments] = useState<ProducePayment[]>([]);
+  const [purchases, setPurchases] = useState<ProducePurchaseWithLog[]>([]);
+  const [payments, setPayments] = useState<ProducePaymentWithLog[]>([]);
   const [balance, setBalance] = useState<ProduceBalance | null>(null);
   const [monthlyUsage, setMonthlyUsage] = useState<MonthlyProduceUsage | null>(null);
   const [loading, setLoading] = useState(false);
@@ -97,8 +128,39 @@ export const ProducePage: React.FC = () => {
       if (user?.role === "super_admin" && selectedBranchId) {
         params.branch_id = selectedBranchId;
       }
-      const res = await apiClient.get("/produce-purchases", { params });
-      setPurchases(res.data || []);
+      const purchasesRes = await apiClient.get("/produce-purchases", { params });
+      
+      // Audit log'ları çek
+      const logParams: any = {
+        entity_type: "produce_purchase",
+      };
+      if (user?.role === "super_admin") {
+        if (selectedBranchId) {
+          logParams.branch_id = selectedBranchId;
+        }
+      }
+      const logsRes = await apiClient.get("/audit-logs", { params: logParams });
+      
+      // Purchase'ları log'larla birleştir
+      const purchasesWithLogs: ProducePurchaseWithLog[] = purchasesRes.data.map((purchase: ProducePurchase) => {
+        const createLog = logsRes.data.find(
+          (log: AuditLog) =>
+            log.entity_type === "produce_purchase" &&
+            log.entity_id === purchase.id &&
+            log.action === "create"
+        );
+        
+        return {
+          ...purchase,
+          created_by_user_id: createLog?.user_id,
+          created_by_user_name: createLog?.user_name,
+          created_at: createLog?.created_at,
+          log_id: createLog?.id,
+          is_undone: createLog?.is_undone || false,
+        };
+      });
+      
+      setPurchases(purchasesWithLogs);
     } catch (err) {
       console.error("Alımlar yüklenemedi:", err);
     } finally {
@@ -112,8 +174,39 @@ export const ProducePage: React.FC = () => {
       if (user?.role === "super_admin" && selectedBranchId) {
         params.branch_id = selectedBranchId;
       }
-      const res = await apiClient.get("/produce-payments", { params });
-      setPayments(res.data || []);
+      const paymentsRes = await apiClient.get("/produce-payments", { params });
+      
+      // Audit log'ları çek
+      const logParams: any = {
+        entity_type: "produce_payment",
+      };
+      if (user?.role === "super_admin") {
+        if (selectedBranchId) {
+          logParams.branch_id = selectedBranchId;
+        }
+      }
+      const logsRes = await apiClient.get("/audit-logs", { params: logParams });
+      
+      // Payment'ları log'larla birleştir
+      const paymentsWithLogs: ProducePaymentWithLog[] = paymentsRes.data.map((payment: ProducePayment) => {
+        const createLog = logsRes.data.find(
+          (log: AuditLog) =>
+            log.entity_type === "produce_payment" &&
+            log.entity_id === payment.id &&
+            log.action === "create"
+        );
+        
+        return {
+          ...payment,
+          created_by_user_id: createLog?.user_id,
+          created_by_user_name: createLog?.user_name,
+          created_at: createLog?.created_at,
+          log_id: createLog?.id,
+          is_undone: createLog?.is_undone || false,
+        };
+      });
+      
+      setPayments(paymentsWithLogs);
     } catch (err) {
       console.error("Ödemeler yüklenemedi:", err);
     }
@@ -242,6 +335,56 @@ export const ProducePage: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleUndoPurchase = async (logId: number, _purchaseId: number) => {
+    if (!confirm("Bu alım kaydını geri almak istediğinize emin misiniz?")) {
+      return;
+    }
+
+    try {
+      await apiClient.post(`/audit-logs/${logId}/undo`);
+      alert("Alım kaydı başarıyla geri alındı");
+      await fetchPurchases();
+      await fetchBalance();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Geri alma işlemi başarısız");
+    }
+  };
+
+  const handleUndoPayment = async (logId: number, _paymentId: number) => {
+    if (!confirm("Bu ödeme kaydını geri almak istediğinize emin misiniz?")) {
+      return;
+    }
+
+    try {
+      await apiClient.post(`/audit-logs/${logId}/undo`);
+      alert("Ödeme kaydı başarıyla geri alındı");
+      await fetchPayments();
+      await fetchBalance();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Geri alma işlemi başarısız");
+    }
+  };
+
+  const canUndoPurchase = (purchase: ProducePurchaseWithLog): boolean => {
+    if (!purchase.log_id || purchase.is_undone) {
+      return false;
+    }
+    if (user?.role === "super_admin") {
+      return true;
+    }
+    return purchase.created_by_user_id === user?.id;
+  };
+
+  const canUndoPayment = (payment: ProducePaymentWithLog): boolean => {
+    if (!payment.log_id || payment.is_undone) {
+      return false;
+    }
+    if (user?.role === "super_admin") {
+      return true;
+    }
+    return payment.created_by_user_id === user?.id;
   };
 
   return (
@@ -602,7 +745,11 @@ export const ProducePage: React.FC = () => {
             {purchases.map((purchase) => (
               <div
                 key={purchase.id}
-                className="p-3 bg-white rounded-xl border border-[#E5E5E5] shadow-sm"
+                className={`p-3 bg-white rounded-xl border ${
+                  purchase.is_undone
+                    ? "border-[#CCCCCC] opacity-60"
+                    : "border-[#E5E5E5]"
+                } shadow-sm`}
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex-1">
@@ -614,6 +761,22 @@ export const ProducePage: React.FC = () => {
                       </span>
                       <span className="text-xs text-slate-500">•</span>
                       <span className="text-xs text-[#222222]">{purchase.date}</span>
+                      {purchase.created_by_user_name && (
+                        <>
+                          <span className="text-xs text-slate-500">•</span>
+                          <span className="text-xs text-[#222222]">
+                            👤 {purchase.created_by_user_name}
+                          </span>
+                        </>
+                      )}
+                      {purchase.is_undone && (
+                        <>
+                          <span className="text-xs text-slate-500">•</span>
+                          <span className="text-xs text-yellow-400">
+                            (Geri Alındı)
+                          </span>
+                        </>
+                      )}
                     </div>
                     {purchase.description && (
                       <div className="text-xs text-[#222222]">
@@ -624,8 +787,20 @@ export const ProducePage: React.FC = () => {
                       Birim fiyat: {purchase.unit_price.toFixed(2)} TL
                     </div>
                   </div>
-                  <div className="text-sm font-semibold text-right">
-                    {purchase.total_amount.toFixed(2)} TL
+                  <div className="flex items-center gap-3">
+                    <div className="text-sm font-semibold text-right">
+                      {purchase.total_amount.toFixed(2)} TL
+                    </div>
+                    {purchase.log_id && canUndoPurchase(purchase) && (
+                      <button
+                        onClick={() =>
+                          handleUndoPurchase(purchase.log_id!, purchase.id)
+                        }
+                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors whitespace-nowrap"
+                      >
+                        Geri Al
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -653,7 +828,11 @@ export const ProducePage: React.FC = () => {
             {payments.map((payment) => (
               <div
                 key={payment.id}
-                className="p-3 bg-white rounded-xl border border-[#E5E5E5] shadow-sm"
+                className={`p-3 bg-white rounded-xl border ${
+                  payment.is_undone
+                    ? "border-[#CCCCCC] opacity-60"
+                    : "border-[#E5E5E5]"
+                } shadow-sm`}
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex-1">
@@ -661,6 +840,22 @@ export const ProducePage: React.FC = () => {
                       <span className="text-sm font-medium">Manav Ödemesi</span>
                       <span className="text-xs text-slate-500">•</span>
                       <span className="text-xs text-[#222222]">{payment.date}</span>
+                      {payment.created_by_user_name && (
+                        <>
+                          <span className="text-xs text-slate-500">•</span>
+                          <span className="text-xs text-[#222222]">
+                            👤 {payment.created_by_user_name}
+                          </span>
+                        </>
+                      )}
+                      {payment.is_undone && (
+                        <>
+                          <span className="text-xs text-slate-500">•</span>
+                          <span className="text-xs text-yellow-400">
+                            (Geri Alındı)
+                          </span>
+                        </>
+                      )}
                     </div>
                     {payment.description && (
                       <div className="text-xs text-[#222222]">
@@ -668,8 +863,20 @@ export const ProducePage: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  <div className="text-sm font-semibold text-right text-green-600">
-                    {payment.amount.toFixed(2)} TL
+                  <div className="flex items-center gap-3">
+                    <div className="text-sm font-semibold text-right text-green-600">
+                      {payment.amount.toFixed(2)} TL
+                    </div>
+                    {payment.log_id && canUndoPayment(payment) && (
+                      <button
+                        onClick={() =>
+                          handleUndoPayment(payment.log_id!, payment.id)
+                        }
+                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors whitespace-nowrap"
+                      >
+                        Geri Al
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
