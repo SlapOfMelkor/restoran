@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
+import { Modal } from "../components/Modal";
 
 interface Product {
   id: number;
@@ -30,7 +31,7 @@ export const WastePage: React.FC = () => {
   const { user, selectedBranchId } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [wasteEntries, setWasteEntries] = useState<WasteEntryWithLog[]>([]);
-  const [showForm, setShowForm] = useState(true);
+  const [showForm, setShowForm] = useState(false);
   const [showEntries, setShowEntries] = useState(true);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
@@ -195,10 +196,10 @@ export const WastePage: React.FC = () => {
         </p>
         <div className="flex gap-2">
           <button
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => setShowForm(true)}
             className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors"
           >
-            {showForm ? "Formu Gizle" : "Zayiat Ekle"}
+            Zayiat Ekle
           </button>
           <button
             onClick={() => setShowEntries(!showEntries)}
@@ -210,10 +211,21 @@ export const WastePage: React.FC = () => {
       </div>
 
       {/* Zayiat Ekleme Formu */}
-      {showForm && (
-      <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">Yeni Zayiat Girişi</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
+      <Modal
+        isOpen={showForm}
+        onClose={() => {
+          setShowForm(false);
+          setFormData({
+            product_id: "",
+            date: new Date().toISOString().split("T")[0],
+            quantity: "",
+            note: "",
+          });
+        }}
+        title="Yeni Zayiat Girişi"
+        maxWidth="md"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs text-[#222222] mb-1">Tarih</label>
@@ -280,32 +292,32 @@ export const WastePage: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
-              >
-                {submitting ? "Kaydediliyor..." : "Zayiat Girişini Kaydet"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFormData({
-                    date: new Date().toISOString().split("T")[0],
-                    product_id: "",
-                    quantity: "",
-                    note: "",
-                  });
-                }}
-                className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
-              >
-                Temizle
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
+            >
+              {submitting ? "Kaydediliyor..." : "Zayiat Girişini Kaydet"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(false);
+                setFormData({
+                  date: new Date().toISOString().split("T")[0],
+                  product_id: "",
+                  quantity: "",
+                  note: "",
+                });
+              }}
+              className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+            >
+              İptal
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Zayiat Girişleri Geçmişi */}
       {showEntries && (

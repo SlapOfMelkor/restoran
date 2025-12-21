@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
 import { handleNumberInputChange, getNumberValue } from "../utils/numberFormat";
+import { Modal } from "../components/Modal";
 
 interface CashMovement {
   id: number;
@@ -132,9 +133,9 @@ export const CashPage: React.FC = () => {
 
       await apiClient.post("/cash-movements", payload);
       alert("Para girişi başarıyla eklendi");
-      setFormData({ method: "cash", amount: "", description: "" });
       setShowForm(false);
-      fetchMovements();
+      setFormData({ method: "cash", amount: "", description: "" });
+      await fetchMovements();
     } catch (err: any) {
       alert(err.response?.data?.error || "Para girişi eklenemedi");
     } finally {
@@ -188,17 +189,26 @@ export const CashPage: React.FC = () => {
           Nakit, POS ve Yemeksepeti giriş kayıtları ile işlem geçmişi
         </p>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => setShowForm(true)}
           className="px-4 py-2 rounded-lg text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
         >
-          {showForm ? "Formu Gizle" : "Para Girişi Ekle"}
+          Para Girişi Ekle
         </button>
       </div>
 
-      {showForm && (
-        <div className="bg-white/80 rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">Yeni Para Girişi</h2>
-          <form onSubmit={handleSubmit} className="space-y-3">
+      <Modal
+        isOpen={showForm}
+        onClose={() => {
+          setShowForm(false);
+          setFormData({
+            method: "cash",
+            amount: "",
+            description: "",
+          });
+        }}
+        title="Yeni Para Girişi"
+      >
+        <form onSubmit={handleSubmit} className="space-y-3">
             <div>
               <label className="block text-xs text-[#555555] mb-1">
                 Para Giriş Türü
@@ -250,28 +260,27 @@ export const CashPage: React.FC = () => {
                 placeholder="Açıklama..."
               />
             </div>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
-              >
-                {submitting ? "Ekleniyor..." : "Ekle"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForm(false);
-                  setFormData({ method: "cash", amount: "", description: "" });
-                }}
-                className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
-              >
-                İptal
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
+            >
+              {submitting ? "Ekleniyor..." : "Ekle"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(false);
+                setFormData({ method: "cash", amount: "", description: "" });
+              }}
+              className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+            >
+              İptal
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       <div className="bg-white/80 rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
         <h2 className="text-sm font-semibold mb-3 text-[#8F1A9F]">Para Girişi Kayıtları</h2>

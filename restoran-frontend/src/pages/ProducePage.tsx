@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
 import { handleNumberInputChange, getNumberValue } from "../utils/numberFormat";
+import { Modal } from "../components/Modal";
 
 interface Product {
   id: number;
@@ -252,16 +253,16 @@ export const ProducePage: React.FC = () => {
         </p>
         <div className="flex gap-2">
           <button
-            onClick={() => setShowPurchaseForm(!showPurchaseForm)}
+            onClick={() => setShowPurchaseForm(true)}
             className="px-4 py-2 rounded-lg text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
           >
-            {showPurchaseForm ? "Formu Gizle" : "Alım Ekle"}
+            Alım Ekle
           </button>
           <button
-            onClick={() => setShowPaymentForm(!showPaymentForm)}
+            onClick={() => setShowPaymentForm(true)}
             className="px-4 py-2 rounded-lg text-sm transition-colors bg-green-600 hover:bg-green-700 text-white"
           >
-            {showPaymentForm ? "Formu Gizle" : "Ödeme Ekle"}
+            Ödeme Ekle
           </button>
         </div>
       </div>
@@ -294,10 +295,22 @@ export const ProducePage: React.FC = () => {
       )}
 
       {/* Alım Formu */}
-      {showPurchaseForm && (
-        <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">Yeni Manav Alımı</h2>
-          <form onSubmit={handlePurchaseSubmit} className="space-y-3">
+      <Modal
+        isOpen={showPurchaseForm}
+        onClose={() => {
+          setShowPurchaseForm(false);
+          setPurchaseFormData({
+            product_id: "",
+            quantity: "",
+            unit_price: "",
+            date: new Date().toISOString().split("T")[0],
+            description: "",
+          });
+        }}
+        title="Yeni Manav Alımı"
+        maxWidth="md"
+      >
+        <form onSubmit={handlePurchaseSubmit} className="space-y-3">
             <div>
               <label className="block text-xs text-[#555555] mb-1">
                 Ürün
@@ -397,40 +410,49 @@ export const ProducePage: React.FC = () => {
                 placeholder="Açıklama..."
               />
             </div>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
-              >
-                {submitting ? "Ekleniyor..." : "Ekle"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPurchaseForm(false);
-                  setPurchaseFormData({
-                    product_id: "",
-                    quantity: "",
-                    unit_price: "",
-                    date: new Date().toISOString().split("T")[0],
-                    description: "",
-                  });
-                }}
-                className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
-              >
-                İptal
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
+            >
+              {submitting ? "Ekleniyor..." : "Ekle"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowPurchaseForm(false);
+                setPurchaseFormData({
+                  product_id: "",
+                  quantity: "",
+                  unit_price: "",
+                  date: new Date().toISOString().split("T")[0],
+                  description: "",
+                });
+              }}
+              className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+            >
+              İptal
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Ödeme Formu */}
-      {showPaymentForm && (
-        <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">Manav Ödemesi</h2>
-          <form onSubmit={handlePaymentSubmit} className="space-y-3">
+      <Modal
+        isOpen={showPaymentForm}
+        onClose={() => {
+          setShowPaymentForm(false);
+          setPaymentFormData({
+            date: new Date().toISOString().split("T")[0],
+            amount: "",
+            description: "",
+          });
+        }}
+        title="Manav Ödemesi"
+        maxWidth="md"
+      >
+        <form onSubmit={handlePaymentSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-[#555555] mb-1">
@@ -487,32 +509,31 @@ export const ProducePage: React.FC = () => {
                 placeholder="Açıklama..."
               />
             </div>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-4 py-2 rounded text-sm transition-colors bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white"
-              >
-                {submitting ? "Ekleniyor..." : "Ekle"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPaymentForm(false);
-                  setPaymentFormData({
-                    amount: "",
-                    date: new Date().toISOString().split("T")[0],
-                    description: "",
-                  });
-                }}
-                className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
-              >
-                İptal
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white"
+            >
+              {submitting ? "Ekleniyor..." : "Ekle"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowPaymentForm(false);
+                setPaymentFormData({
+                  amount: "",
+                  date: new Date().toISOString().split("T")[0],
+                  description: "",
+                });
+              }}
+              className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+            >
+              İptal
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Aylık Kullanım */}
       <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">

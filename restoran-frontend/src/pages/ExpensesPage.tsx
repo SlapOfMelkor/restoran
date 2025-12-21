@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
 import { handleNumberInputChange, getNumberValue } from "../utils/numberFormat";
+import { Modal } from "../components/Modal";
 
 interface ExpenseCategory {
   id: number;
@@ -290,18 +291,24 @@ export const ExpensesPage: React.FC = () => {
         <div className="flex gap-2">
           {user?.role === "super_admin" && (
             <button
-              onClick={() => setShowCategoryForm(!showCategoryForm)}
+              onClick={() => setShowCategoryForm(true)}
               className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
             >
-              {showCategoryForm ? "Formu Gizle" : "Kategori Ekle"}
+              Kategori Ekle
             </button>
           )}
         </div>
       </div>
 
-      {user?.role === "super_admin" && showCategoryForm && (
-        <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">Yeni Gider Kategorisi</h2>
+      {user?.role === "super_admin" && (
+        <Modal
+          isOpen={showCategoryForm}
+          onClose={() => {
+            setShowCategoryForm(false);
+            setCategoryFormData({ name: "" });
+          }}
+          title="Yeni Gider Kategorisi"
+        >
           <form onSubmit={handleCategorySubmit} className="space-y-3">
             <div>
               <label className="block text-xs text-[#555555] mb-1">
@@ -318,11 +325,11 @@ export const ExpensesPage: React.FC = () => {
                 required
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-2">
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
+                className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
               >
                 {submitting ? "Oluşturuluyor..." : "Oluştur"}
               </button>
@@ -338,7 +345,7 @@ export const ExpensesPage: React.FC = () => {
               </button>
             </div>
           </form>
-        </div>
+        </Modal>
       )}
 
       {/* Kategori Kutucukları */}
@@ -555,10 +562,21 @@ export const ExpensesPage: React.FC = () => {
       )}
 
       {/* Gider Ekleme Formu */}
-      {showExpenseForm && (
-        <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">Borç Ekle (Gider)</h2>
-          <form onSubmit={handleExpenseSubmit} className="space-y-3">
+      <Modal
+        isOpen={showExpenseForm}
+        onClose={() => {
+          setShowExpenseForm(false);
+          setExpenseFormData({
+            category_id: "",
+            date: new Date().toISOString().split("T")[0],
+            amount: "",
+            description: "",
+          });
+        }}
+        title="Borç Ekle (Gider)"
+        maxWidth="md"
+      >
+        <form onSubmit={handleExpenseSubmit} className="space-y-3">
             <div>
               <label className="block text-xs text-[#555555] mb-1">
                 Kategori
@@ -638,39 +656,49 @@ export const ExpensesPage: React.FC = () => {
                 placeholder="Açıklama..."
               />
             </div>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
-              >
-                {submitting ? "Ekleniyor..." : "Ekle"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowExpenseForm(false);
-                  setExpenseFormData({
-                    category_id: "",
-                    date: new Date().toISOString().split("T")[0],
-                    amount: "",
-                    description: "",
-                  });
-                }}
-                className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
-              >
-                İptal
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
+            >
+              {submitting ? "Ekleniyor..." : "Ekle"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowExpenseForm(false);
+                setExpenseFormData({
+                  category_id: "",
+                  date: new Date().toISOString().split("T")[0],
+                  amount: "",
+                  description: "",
+                });
+              }}
+              className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+            >
+              İptal
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Ödeme Formu */}
-      {showPaymentForm && (
-        <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">Ödeme Yap</h2>
-          <form onSubmit={handlePaymentSubmit} className="space-y-3">
+      <Modal
+        isOpen={showPaymentForm}
+        onClose={() => {
+          setShowPaymentForm(false);
+          setPaymentFormData({
+            category_id: "",
+            date: new Date().toISOString().split("T")[0],
+            amount: "",
+            description: "",
+          });
+        }}
+        title="Ödeme Yap"
+        maxWidth="md"
+      >
+        <form onSubmit={handlePaymentSubmit} className="space-y-3">
             <div>
               <label className="block text-xs text-[#555555] mb-1">
                 Kategori
@@ -750,33 +778,32 @@ export const ExpensesPage: React.FC = () => {
                 placeholder="Açıklama..."
               />
             </div>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-4 py-2 rounded text-sm transition-colors bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white"
-              >
-                {submitting ? "Ekleniyor..." : "Ödeme Yap"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPaymentForm(false);
-                  setPaymentFormData({
-                    category_id: "",
-                    date: new Date().toISOString().split("T")[0],
-                    amount: "",
-                    description: "",
-                  });
-                }}
-                className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
-              >
-                İptal
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white"
+            >
+              {submitting ? "Ekleniyor..." : "Ödeme Yap"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowPaymentForm(false);
+                setPaymentFormData({
+                  category_id: "",
+                  date: new Date().toISOString().split("T")[0],
+                  amount: "",
+                  description: "",
+                });
+              }}
+              className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+            >
+              İptal
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };
