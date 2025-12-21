@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
-import { handleNumberInputChange, getNumberValue } from "../utils/numberFormat";
 import { Modal } from "../components/Modal";
 
 interface ExpenseCategory {
@@ -168,12 +167,12 @@ export const ExpensesPage: React.FC = () => {
 
   const handleExpenseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const amountNum = getNumberValue(expenseFormData.amount);
+    const amountNum = parseFloat(expenseFormData.amount);
 
     if (
       !expenseFormData.category_id ||
       !expenseFormData.amount ||
-      amountNum <= 0
+      isNaN(amountNum) || amountNum <= 0
     ) {
       alert("Lütfen kategori seçin ve geçerli bir tutar girin");
       return;
@@ -212,12 +211,12 @@ export const ExpensesPage: React.FC = () => {
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const amountNum = getNumberValue(paymentFormData.amount);
+    const amountNum = parseFloat(paymentFormData.amount);
 
     if (
       !paymentFormData.category_id ||
       !paymentFormData.amount ||
-      amountNum <= 0
+      isNaN(amountNum) || amountNum <= 0
     ) {
       alert("Lütfen kategori seçin ve geçerli bir tutar girin");
       return;
@@ -622,21 +621,21 @@ export const ExpensesPage: React.FC = () => {
                 <label className="block text-xs text-[#555555] mb-1">
                   Tutar (TL)
                 </label>
-                <input
-                  type="text"
-                  value={expenseFormData.amount}
-                  onChange={(e) =>
-                    handleNumberInputChange(e, (value) =>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={expenseFormData.amount}
+                    onChange={(e) =>
                       setExpenseFormData({
                         ...expenseFormData,
-                        amount: value,
+                        amount: e.target.value,
                       })
-                    )
-                  }
-                  className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                  placeholder="0,00"
-                  required
-                />
+                    }
+                    className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                    placeholder="0.00"
+                    required
+                  />
               </div>
             </div>
             <div>
@@ -744,21 +743,21 @@ export const ExpensesPage: React.FC = () => {
                 <label className="block text-xs text-[#555555] mb-1">
                   Tutar (TL)
                 </label>
-                <input
-                  type="text"
-                  value={paymentFormData.amount}
-                  onChange={(e) =>
-                    handleNumberInputChange(e, (value) =>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={paymentFormData.amount}
+                    onChange={(e) =>
                       setPaymentFormData({
                         ...paymentFormData,
-                        amount: value,
+                        amount: e.target.value,
                       })
-                    )
-                  }
-                  className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                  placeholder="0,00"
-                  required
-                />
+                    }
+                    className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                    placeholder="0.00"
+                    required
+                  />
               </div>
             </div>
             <div>

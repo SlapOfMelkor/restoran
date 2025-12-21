@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
-import { handleNumberInputChange, getNumberValue } from "../utils/numberFormat";
 
 interface BankAccount {
   id: number;
@@ -62,7 +61,7 @@ export const BankStatusPage: React.FC = () => {
         type: formData.type,
         name: formData.name,
         account_number: formData.account_number,
-        balance: getNumberValue(formData.balance) || 0,
+        balance: parseFloat(formData.balance) || 0,
         description: formData.description,
         is_active: formData.is_active,
       };
@@ -212,18 +211,17 @@ export const BankStatusPage: React.FC = () => {
               <label className="block text-xs text-[#555555] mb-1">
                 {formData.type === "bank" ? "Bakiye" : "Borç"} (TL)
               </label>
-              <input
-                type="text"
-                value={formData.balance}
-                onChange={(e) =>
-                  handleNumberInputChange(e, (value) =>
-                    setFormData({ ...formData, balance: value })
-                  )
-                }
-                className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                placeholder="0,00"
-                required
-              />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.balance}
+                    onChange={(e) =>
+                      setFormData({ ...formData, balance: e.target.value })
+                    }
+                    className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                    placeholder="0.00"
+                    required
+                  />
             </div>
             <div>
               <label className="block text-xs text-[#555555] mb-1">Açıklama</label>

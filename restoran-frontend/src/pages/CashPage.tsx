@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
-import { handleNumberInputChange, getNumberValue } from "../utils/numberFormat";
 import { Modal } from "../components/Modal";
 
 interface CashMovement {
@@ -112,9 +111,9 @@ export const CashPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const amountNum = getNumberValue(formData.amount);
+    const amountNum = parseFloat(formData.amount);
     
-    if (!formData.amount || amountNum <= 0) {
+    if (!formData.amount || isNaN(amountNum) || amountNum <= 0) {
       alert("Lütfen geçerli bir tutar girin");
       return;
     }
@@ -234,15 +233,15 @@ export const CashPage: React.FC = () => {
                 Tutar (TL)
               </label>
               <input
-                type="text"
+                type="number"
+                step="0.01"
+                min="0"
                 value={formData.amount}
                 onChange={(e) =>
-                  handleNumberInputChange(e, (value) =>
-                    setFormData({ ...formData, amount: value })
-                  )
+                  setFormData({ ...formData, amount: e.target.value })
                 }
                 className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                placeholder="0,00"
+                placeholder="0.00"
                 required
               />
             </div>

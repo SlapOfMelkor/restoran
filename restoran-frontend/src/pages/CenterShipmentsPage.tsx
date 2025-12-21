@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
-import { handleNumberInputChange, getNumberValue } from "../utils/numberFormat";
 
 interface CenterShipment {
   id: number;
@@ -126,14 +125,14 @@ export const CenterShipmentsPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const unitPriceNum = getNumberValue(formData.unit_price);
+    const unitPriceNum = parseFloat(formData.unit_price);
     
     if (
       !formData.product_id ||
       !formData.quantity ||
       !formData.unit_price ||
       parseFloat(formData.quantity) <= 0 ||
-      unitPriceNum <= 0
+      isNaN(unitPriceNum) || unitPriceNum <= 0
     ) {
       alert("Lütfen tüm alanları doldurun ve geçerli değerler girin");
       return;
@@ -276,18 +275,18 @@ export const CenterShipmentsPage: React.FC = () => {
                 <label className="block text-xs text-[#222222] mb-1">
                   Birim Fiyat (TL)
                 </label>
-                <input
-                  type="text"
-                  value={formData.unit_price}
-                  onChange={(e) =>
-                    handleNumberInputChange(e, (value) =>
-                      setFormData({ ...formData, unit_price: value })
-                    )
-                  }
-                  className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                  placeholder="0,00"
-                  required
-                />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.unit_price}
+                    onChange={(e) =>
+                      setFormData({ ...formData, unit_price: e.target.value })
+                    }
+                    className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                    placeholder="0.00"
+                    required
+                  />
               </div>
             </div>
             {formData.quantity &&
