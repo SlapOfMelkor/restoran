@@ -19,15 +19,16 @@ type Shipment struct {
 
 // ShipmentItem: Sevkiyat içindeki her ürün
 type ShipmentItem struct {
-	ID         uint `gorm:"primaryKey"`
-	ShipmentID uint `gorm:"index;not null"`
-	Shipment   Shipment
-	ProductID  uint    `gorm:"index;not null"`
-	Product    Product
-	Quantity   float64 `gorm:"not null"` // miktar
-	UnitPrice  float64 `gorm:"not null"` // birim fiyat
-	TotalPrice float64 `gorm:"not null"` // Quantity * UnitPrice
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID               uint `gorm:"primaryKey"`
+	ShipmentID       uint `gorm:"index;not null"`
+	Shipment         Shipment
+	ProductID        uint    `gorm:"index;not null"`
+	Product          Product
+	Quantity         float64 `gorm:"not null"` // miktar
+	UnitPrice        float64 `gorm:"not null"` // KDV'siz birim fiyat
+	UnitPriceWithVAT float64 `gorm:"not null"` // KDV'li birim fiyat
+	TotalPrice       float64 `gorm:"not null"` // KDV'li toplam maliyet (Quantity * UnitPriceWithVAT)
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 

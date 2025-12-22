@@ -20,14 +20,15 @@ type CreateShipmentRequest struct {
 }
 
 type ShipmentItemRequest struct {
-	ProductID   uint    `json:"product_id"`   // 0 ise otomatik oluşturulacak
-	Quantity    float64 `json:"quantity"`
-	UnitPrice   float64 `json:"unit_price"`   // Birim fiyat (opsiyonel, total_price varsa kullanılmayabilir)
-	TotalPrice  float64 `json:"total_price"`  // Toplam tutar (KDV dahil) - eğer varsa bu kullanılır
+	ProductID        uint    `json:"product_id"`         // 0 ise otomatik oluşturulacak
+	Quantity         float64 `json:"quantity"`
+	UnitPrice        float64 `json:"unit_price"`         // KDV'siz birim fiyat
+	UnitPriceWithVAT float64 `json:"unit_price_with_vat"` // KDV'li birim fiyat
+	TotalPrice       float64 `json:"total_price"`        // KDV'li toplam tutar (UnitPriceWithVAT * Quantity)
 	// Otomatik ürün oluşturma için (product_id = 0 olduğunda)
-	ProductName string `json:"product_name"`  // Ürün adı
-	StockCode   string `json:"stock_code"`    // Stok kodu
-	Unit        string `json:"unit"`          // Birim (Paket, Koli, Adet, Kilogram)
+	ProductName string `json:"product_name"` // Ürün adı
+	StockCode   string `json:"stock_code"`   // Stok kodu
+	Unit        string `json:"unit"`         // Birim (Paket, Koli, Adet, Kilogram)
 }
 
 // ShipmentResponse: Sevkiyat yanıtı
@@ -43,12 +44,13 @@ type ShipmentResponse struct {
 }
 
 type ShipmentItemResponse struct {
-	ID          uint    `json:"id"`
-	ProductID   uint    `json:"product_id"`
-	ProductName string  `json:"product_name"`
-	Quantity    float64 `json:"quantity"`
-	UnitPrice   float64 `json:"unit_price"`
-	TotalPrice  float64 `json:"total_price"`
+	ID               uint    `json:"id"`
+	ProductID        uint    `json:"product_id"`
+	ProductName      string  `json:"product_name"`
+	Quantity         float64 `json:"quantity"`
+	UnitPrice        float64 `json:"unit_price"`         // KDV'siz birim fiyat
+	UnitPriceWithVAT float64 `json:"unit_price_with_vat"` // KDV'li birim fiyat
+	TotalPrice       float64 `json:"total_price"`        // KDV'li toplam tutar
 }
 
 // POST /api/shipments
@@ -127,13 +129,22 @@ func CreateShipmentHandler() fiber.Handler {
 				}
 			}
 
-			// Toplam tutarı belirle: Eğer total_price gönderildiyse onu kullan, yoksa quantity * unit_price hesapla
-			var totalPrice float64
-			if itemReq.TotalPrice > 0 {
-				totalPrice = itemReq.TotalPrice // B2B'den gelen KDV dahil toplam tutar
+			// Fiyat bilgilerini belirle
+			var unitPrice, unitPriceWithVAT, totalPrice float64
+			
+			if itemReq.TotalPrice > 0 && itemReq.UnitPriceWithVAT > 0 {
+				// B2B'den gelen veriler: KDV'li toplam ve birim fiyatlar kullan
+				unitPrice = itemReq.UnitPrice        // KDV'siz birim fiyat
+				unitPriceWithVAT = itemReq.UnitPriceWithVAT // KDV'li birim fiyat
+				totalPrice = itemReq.TotalPrice       // KDV'li toplam tutar
 			} else {
-				totalPrice = itemReq.Quantity * itemReq.UnitPrice // Manuel girilen ürünler için
+				// Manuel girilen ürünler için: Sadece KDV'siz birim fiyat var, KDV'li fiyatları hesapla
+				unitPrice = itemReq.UnitPrice
+				// KDV'siz birim fiyat = KDV'li birim fiyat (varsayılan olarak KDV yok sayılıyor)
+				unitPriceWithVAT = itemReq.UnitPrice
+				totalPrice = itemReq.Quantity * unitPriceWithVAT
 			}
+			
 			totalAmount += totalPrice
 
 			// Yeni oluşturulan ürün için product.ID kullan, aksi halde itemReq.ProductID kullan
@@ -142,17 +153,12 @@ func CreateShipmentHandler() fiber.Handler {
 				productID = product.ID // Yeni oluşturulan ürünün ID'sini kullan
 			}
 
-			// Unit price'ı güncelle: Eğer total_price kullanıldıysa, unit_price'i hesapla (gösterim için)
-			unitPrice := itemReq.UnitPrice
-			if itemReq.TotalPrice > 0 && itemReq.Quantity > 0 {
-				unitPrice = itemReq.TotalPrice / itemReq.Quantity // KDV dahil birim fiyat
-			}
-
 			shipmentItems = append(shipmentItems, models.ShipmentItem{
-				ProductID:  productID,
-				Quantity:   itemReq.Quantity,
-				UnitPrice:  unitPrice,
-				TotalPrice: totalPrice,
+				ProductID:        productID,
+				Quantity:         itemReq.Quantity,
+				UnitPrice:        unitPrice,        // KDV'siz birim fiyat
+				UnitPriceWithVAT: unitPriceWithVAT, // KDV'li birim fiyat
+				TotalPrice:       totalPrice,       // KDV'li toplam tutar
 			})
 		}
 
@@ -195,12 +201,13 @@ func CreateShipmentHandler() fiber.Handler {
 		itemsResp := make([]ShipmentItemResponse, 0, len(shipment.Items))
 		for _, item := range shipment.Items {
 			itemsResp = append(itemsResp, ShipmentItemResponse{
-				ID:          item.ID,
-				ProductID:   item.ProductID,
-				ProductName: item.Product.Name,
-				Quantity:    item.Quantity,
-				UnitPrice:   item.UnitPrice,
-				TotalPrice:  item.TotalPrice,
+				ID:               item.ID,
+				ProductID:        item.ProductID,
+				ProductName:      item.Product.Name,
+				Quantity:         item.Quantity,
+				UnitPrice:        item.UnitPrice,        // KDV'siz birim fiyat
+				UnitPriceWithVAT: item.UnitPriceWithVAT, // KDV'li birim fiyat
+				TotalPrice:       item.TotalPrice,       // KDV'li toplam tutar
 			})
 		}
 
@@ -239,12 +246,13 @@ func ListShipmentsHandler() fiber.Handler {
 			itemsResp := make([]ShipmentItemResponse, 0, len(s.Items))
 			for _, item := range s.Items {
 				itemsResp = append(itemsResp, ShipmentItemResponse{
-					ID:          item.ID,
-					ProductID:   item.ProductID,
-					ProductName: item.Product.Name,
-					Quantity:    item.Quantity,
-					UnitPrice:   item.UnitPrice,
-					TotalPrice:  item.TotalPrice,
+					ID:               item.ID,
+					ProductID:        item.ProductID,
+					ProductName:      item.Product.Name,
+					Quantity:         item.Quantity,
+					UnitPrice:        item.UnitPrice,        // KDV'siz birim fiyat
+					UnitPriceWithVAT: item.UnitPriceWithVAT, // KDV'li birim fiyat
+					TotalPrice:       item.TotalPrice,       // KDV'li toplam tutar
 				})
 			}
 

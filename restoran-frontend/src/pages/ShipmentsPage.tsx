@@ -14,6 +14,7 @@ interface ShipmentItem {
   product_name: string;
   quantity: number;
   unit_price: number;
+  unit_price_with_vat?: number;
   total_price: number;
 }
 
@@ -378,15 +379,16 @@ export const ShipmentsPage: React.FC = () => {
 
     // Tüm ürünleri (eşleşen ve eşleşmeyen) items'a çevir
     // Eşleşmeyen ürünler için product_id = 0 gönder, backend otomatik oluşturacak
-    // B2B'den gelen total_amount'u kullan (KDV dahil toplam tutar)
+    // B2B'den gelen KDV bilgilerini kullan
     const itemsToSend = parsedProducts.map((p: any) => ({
       product_id: p.matched_product_id || 0, // Eşleşme yoksa 0 (otomatik oluşturulacak)
       product_name: p.product_name,
       stock_code: p.stock_code || "",
       unit: p.quantity_unit || "Adet",
       quantity: p.quantity,
-      unit_price: p.unit_price, // Birim fiyat (gösterim için)
-      total_price: p.total_amount, // B2B'den gelen KDV dahil toplam tutar - backend bunu kullanacak
+      unit_price: p.unit_price,           // KDV'siz birim fiyat
+      unit_price_with_vat: p.unit_price_with_vat || (p.total_amount / (p.quantity || 1)), // KDV'li birim fiyat
+      total_price: p.total_amount,        // KDV'li toplam tutar
     }));
 
     setSubmitting(true);
@@ -514,8 +516,12 @@ export const ShipmentsPage: React.FC = () => {
                       <div className="flex-1">
                         <div className="text-sm font-medium">{p.product_name}</div>
                         <div className="text-xs text-[#222222]">
-                          Stok Kodu: {p.stock_code || "Yok"} • Miktar: {p.quantity} {p.quantity_unit} • 
-                          Birim Fiyat: {p.unit_price.toFixed(2)} TL • Toplam: {p.total_amount.toFixed(2)} TL
+                          Stok Kodu: {p.stock_code || "Yok"} • Miktar: {p.quantity} {p.quantity_unit}
+                        </div>
+                        <div className="text-xs text-[#555555] mt-1">
+                          KDV'siz Birim: {p.unit_price.toFixed(2)} TL • 
+                          KDV'li Birim: {(p.unit_price_with_vat || (p.total_amount / (p.quantity || 1))).toFixed(2)} TL • 
+                          Toplam (KDV'li): {p.total_amount.toFixed(2)} TL
                         </div>
                         {p.matched_product_id ? (
                           <div className="text-xs text-green-600 mt-1">
@@ -765,8 +771,10 @@ export const ShipmentsPage: React.FC = () => {
                     {shipment.items.map((item, idx) => (
                       <div key={idx} className="flex justify-between">
                         <span>{item.product_name}</span>
-                        <span>
-                          {item.quantity} x {item.unit_price.toFixed(2)} = {item.total_price.toFixed(2)} TL
+                        <span className="text-xs">
+                          {item.quantity} x {item.unit_price?.toFixed(2) || "0.00"} (KDV'siz) / 
+                          {item.unit_price_with_vat?.toFixed(2) || item.unit_price?.toFixed(2) || "0.00"} (KDV'li) = 
+                          {item.total_price.toFixed(2)} TL
                         </span>
                       </div>
                     ))}

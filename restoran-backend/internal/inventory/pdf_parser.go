@@ -13,13 +13,14 @@ import (
 
 // ParsedProduct: PDF'den çıkarılan ürün bilgisi
 type ParsedProduct struct {
-	StockCode    string  `json:"stock_code"`    // Stok Kodu (örn: TM0012)
-	ProductName  string  `json:"product_name"`  // Ürün adı
-	UnitPrice    float64 `json:"unit_price"`    // Birim fiyat (140.00)
-	Quantity     float64 `json:"quantity"`      // Miktar (2)
-	QuantityUnit string  `json:"quantity_unit"` // Miktar birimi (Paket, Adet, Kilogram)
-	TotalAmount  float64 `json:"total_amount"`  // Toplam tutar (336.00)
-	MatchedProductID *uint `json:"matched_product_id"` // Eşleşen ürün ID (nil ise eşleşme yok)
+	StockCode         string  `json:"stock_code"`          // Stok Kodu (örn: TM0012)
+	ProductName       string  `json:"product_name"`        // Ürün adı
+	UnitPrice         float64 `json:"unit_price"`          // KDV'siz birim fiyat (140.00)
+	UnitPriceWithVAT  float64 `json:"unit_price_with_vat"` // KDV'li birim fiyat (168.00)
+	Quantity          float64 `json:"quantity"`            // Miktar (2)
+	QuantityUnit      string  `json:"quantity_unit"`       // Miktar birimi (Paket, Adet, Kilogram)
+	TotalAmount       float64 `json:"total_amount"`        // KDV'li toplam tutar (336.00)
+	MatchedProductID  *uint   `json:"matched_product_id"`  // Eşleşen ürün ID (nil ise eşleşme yok)
 	MatchedProductName string `json:"matched_product_name"` // Eşleşen ürün adı
 }
 

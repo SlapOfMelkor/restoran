@@ -170,19 +170,26 @@ func ParseB2BOrderURL(url string) (*ParsePDFResponse, error) {
 			// Miktar ve birim çıkar ("3 Paket" -> quantity=3, unit="Paket")
 			quantity, quantityUnit := extractQuantityAndUnit(quantityStr)
 			
-			// Toplam tutarı parse et
+			// Toplam tutarı parse et (KDV dahil)
 			totalAmount, err := parseTurkishFloat(totalAmountStr)
 			if err != nil {
 				continue
 			}
 			
+			// KDV'li birim fiyatı hesapla (TotalAmount / Quantity)
+			unitPriceWithVAT := totalAmount / quantity
+			if quantity == 0 {
+				unitPriceWithVAT = 0
+			}
+			
 			product := ParsedProduct{
-				StockCode:    stockCode,
-				ProductName:  productName,
-				UnitPrice:    unitPrice,
-				Quantity:     quantity,
-				QuantityUnit: quantityUnit,
-				TotalAmount:  totalAmount,
+				StockCode:        stockCode,
+				ProductName:      productName,
+				UnitPrice:        unitPrice,        // KDV'siz birim fiyat
+				UnitPriceWithVAT: unitPriceWithVAT, // KDV'li birim fiyat
+				Quantity:         quantity,
+				QuantityUnit:     quantityUnit,
+				TotalAmount:      totalAmount,      // KDV'li toplam tutar
 			}
 			
 			// Ürünü sistemdeki ürünlerle eşleştir
