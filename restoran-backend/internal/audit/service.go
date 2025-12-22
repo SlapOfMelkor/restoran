@@ -145,6 +145,10 @@ func deleteEntity(entityType string, entityID uint) error {
 		return database.DB.Delete(&models.Shipment{}, "id = ?", entityID).Error
 	case "waste_entry":
 		return database.DB.Delete(&models.WasteEntry{}, "id = ?", entityID).Error
+	case "produce_purchase":
+		return database.DB.Delete(&models.ProducePurchase{}, "id = ?", entityID).Error
+	case "produce_payment":
+		return database.DB.Delete(&models.ProducePayment{}, "id = ?", entityID).Error
 	default:
 		return fmt.Errorf("bilinmeyen entity tipi: %s", entityType)
 	}
@@ -223,6 +227,22 @@ func recreateEntity(entityType string, dataJSON string) error {
 		}
 		entry.ID = 0
 		return database.DB.Create(&entry).Error
+
+	case "produce_purchase":
+		var purchase models.ProducePurchase
+		if err := json.Unmarshal([]byte(dataJSON), &purchase); err != nil {
+			return err
+		}
+		purchase.ID = 0
+		return database.DB.Create(&purchase).Error
+
+	case "produce_payment":
+		var payment models.ProducePayment
+		if err := json.Unmarshal([]byte(dataJSON), &payment); err != nil {
+			return err
+		}
+		payment.ID = 0
+		return database.DB.Create(&payment).Error
 
 	default:
 		return fmt.Errorf("bilinmeyen entity tipi: %s", entityType)
@@ -345,6 +365,35 @@ func restoreEntity(entityType string, entityID uint, dataJSON string) error {
 			"date":       shipment.Date,
 			"note":       shipment.Note,
 			"is_stocked": shipment.IsStocked,
+		}).Error
+
+	case "produce_purchase":
+		var purchase models.ProducePurchase
+		if err := json.Unmarshal([]byte(dataJSON), &purchase); err != nil {
+			return err
+		}
+		purchase.ID = entityID
+		return database.DB.Model(&models.ProducePurchase{}).Where("id = ?", entityID).Updates(map[string]interface{}{
+			"branch_id":    purchase.BranchID,
+			"product_id":   purchase.ProductID,
+			"quantity":     purchase.Quantity,
+			"unit_price":   purchase.UnitPrice,
+			"total_amount": purchase.TotalAmount,
+			"date":         purchase.Date,
+			"description":  purchase.Description,
+		}).Error
+
+	case "produce_payment":
+		var payment models.ProducePayment
+		if err := json.Unmarshal([]byte(dataJSON), &payment); err != nil {
+			return err
+		}
+		payment.ID = entityID
+		return database.DB.Model(&models.ProducePayment{}).Where("id = ?", entityID).Updates(map[string]interface{}{
+			"branch_id":   payment.BranchID,
+			"amount":      payment.Amount,
+			"date":        payment.Date,
+			"description": payment.Description,
 		}).Error
 
 	default:
