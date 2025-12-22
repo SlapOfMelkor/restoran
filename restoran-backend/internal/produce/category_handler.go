@@ -1,7 +1,6 @@
 package produce
 
 import (
-	"fmt"
 	"strings"
 
 	"restoran-backend/internal/auth"
@@ -25,57 +24,6 @@ type CreateProduceCategoryRequest struct {
 
 type UpdateProduceCategoryRequest struct {
 	Name *string `json:"name"`
-}
-
-func resolveBranchIDFromBodyOrRole(c *fiber.Ctx, bodyBranchID *uint) (uint, error) {
-	roleVal := c.Locals(auth.CtxUserRoleKey)
-	role, ok := roleVal.(models.UserRole)
-	if !ok {
-		return 0, fiber.NewError(fiber.StatusForbidden, "Rol bilgisi alınamadı")
-	}
-
-	if role == models.RoleBranchAdmin {
-		bVal := c.Locals(auth.CtxBranchIDKey)
-		bPtr, ok := bVal.(*uint)
-		if !ok || bPtr == nil {
-			return 0, fiber.NewError(fiber.StatusForbidden, "Şube bilgisi bulunamadı")
-		}
-		return *bPtr, nil
-	}
-
-	// super_admin
-	if bodyBranchID == nil {
-		return 0, fiber.NewError(fiber.StatusBadRequest, "branch_id zorunlu")
-	}
-	return *bodyBranchID, nil
-}
-
-func resolveBranchIDFromQueryOrRole(c *fiber.Ctx) (uint, error) {
-	roleVal := c.Locals(auth.CtxUserRoleKey)
-	role, ok := roleVal.(models.UserRole)
-	if !ok {
-		return 0, fiber.NewError(fiber.StatusForbidden, "Rol bilgisi alınamadı")
-	}
-
-	if role == models.RoleBranchAdmin {
-		bVal := c.Locals(auth.CtxBranchIDKey)
-		bPtr, ok := bVal.(*uint)
-		if !ok || bPtr == nil {
-			return 0, fiber.NewError(fiber.StatusForbidden, "Şube bilgisi bulunamadı")
-		}
-		return *bPtr, nil
-	}
-
-	// super_admin
-	bidStr := c.Query("branch_id")
-	if bidStr == "" {
-		return 0, fiber.NewError(fiber.StatusBadRequest, "branch_id zorunlu")
-	}
-	var bid uint
-	if _, err := fmt.Sscan(bidStr, &bid); err != nil || bid == 0 {
-		return 0, fiber.NewError(fiber.StatusBadRequest, "branch_id geçersiz")
-	}
-	return bid, nil
 }
 
 // GET /api/produce-categories?branch_id=...
