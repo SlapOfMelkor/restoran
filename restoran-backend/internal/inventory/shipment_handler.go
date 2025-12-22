@@ -20,9 +20,13 @@ type CreateShipmentRequest struct {
 }
 
 type ShipmentItemRequest struct {
-	ProductID uint    `json:"product_id"`
-	Quantity  float64 `json:"quantity"`
-	UnitPrice float64 `json:"unit_price"`
+	ProductID   uint    `json:"product_id"`   // 0 ise otomatik oluşturulacak
+	Quantity    float64 `json:"quantity"`
+	UnitPrice   float64 `json:"unit_price"`
+	// Otomatik ürün oluşturma için (product_id = 0 olduğunda)
+	ProductName string `json:"product_name"`  // Ürün adı
+	StockCode   string `json:"stock_code"`    // Stok kodu
+	Unit        string `json:"unit"`          // Birim (Paket, Koli, Adet, Kilogram)
 }
 
 // ShipmentResponse: Sevkiyat yanıtı
@@ -73,14 +77,53 @@ func CreateShipmentHandler() fiber.Handler {
 		var shipmentItems []models.ShipmentItem
 
 		for _, itemReq := range body.Items {
-			if itemReq.ProductID == 0 || itemReq.Quantity <= 0 || itemReq.UnitPrice <= 0 {
-				return fiber.NewError(fiber.StatusBadRequest, "Tüm ürünler için product_id, quantity ve unit_price zorunlu ve 0'dan büyük olmalı")
+			if itemReq.Quantity <= 0 || itemReq.UnitPrice <= 0 {
+				return fiber.NewError(fiber.StatusBadRequest, "Tüm ürünler için quantity ve unit_price zorunlu ve 0'dan büyük olmalı")
 			}
 
-			// Ürün var mı?
 			var product models.Product
-			if err := database.DB.First(&product, "id = ?", itemReq.ProductID).Error; err != nil {
-				return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("Ürün bulunamadı: %d", itemReq.ProductID))
+			
+			// Eğer product_id = 0 ise, ürünü otomatik oluştur
+			if itemReq.ProductID == 0 {
+				if itemReq.ProductName == "" || itemReq.Unit == "" {
+					return fiber.NewError(fiber.StatusBadRequest, "Yeni ürün için product_name ve unit zorunlu")
+				}
+				
+				// Stok kodu varsa, aynı stok kodlu ürün var mı kontrol et
+				if itemReq.StockCode != "" {
+					var existingProduct models.Product
+					if err := database.DB.Where("stock_code = ?", itemReq.StockCode).First(&existingProduct).Error; err == nil {
+						// Stok kodu ile eşleşen ürün bulundu, onu kullan
+						product = existingProduct
+					} else {
+						// Yeni ürün oluştur
+						product = models.Product{
+							Name:            itemReq.ProductName,
+							Unit:            itemReq.Unit,
+							StockCode:       itemReq.StockCode,
+							IsCenterProduct: true,
+						}
+						if err := database.DB.Create(&product).Error; err != nil {
+							return fiber.NewError(fiber.StatusInternalServerError, fmt.Sprintf("Ürün oluşturulamadı: %v", err))
+						}
+					}
+				} else {
+					// Stok kodu yoksa, sadece isim ve birimle oluştur
+					product = models.Product{
+						Name:            itemReq.ProductName,
+						Unit:            itemReq.Unit,
+						StockCode:       "",
+						IsCenterProduct: true,
+					}
+					if err := database.DB.Create(&product).Error; err != nil {
+						return fiber.NewError(fiber.StatusInternalServerError, fmt.Sprintf("Ürün oluşturulamadı: %v", err))
+					}
+				}
+			} else {
+				// Mevcut ürünü kullan
+				if err := database.DB.First(&product, "id = ?", itemReq.ProductID).Error; err != nil {
+					return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("Ürün bulunamadı: %d", itemReq.ProductID))
+				}
 			}
 
 			totalPrice := itemReq.Quantity * itemReq.UnitPrice

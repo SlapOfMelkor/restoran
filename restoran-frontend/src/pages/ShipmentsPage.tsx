@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
-import * as pdfjsLib from "pdfjs-dist";
 
 interface Product {
   id: number;
@@ -65,9 +64,10 @@ export const ShipmentsPage: React.FC = () => {
   });
   const [shipmentItems, setShipmentItems] = useState<ShipmentItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [showPdfUpload, setShowPdfUpload] = useState(false);
-  const [parsedPdfProducts, setParsedPdfProducts] = useState<any[]>([]);
-  const [parsingPdf, setParsingPdf] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [b2bUrl, setB2bUrl] = useState("");
+  const [parsedProducts, setParsedProducts] = useState<any[]>([]);
+  const [parsingUrl, setParsingUrl] = useState(false);
 
   // localStorage'dan draft'ı yükle (ürünler yüklendikten sonra)
   useEffect(() => {
@@ -332,125 +332,80 @@ export const ShipmentsPage: React.FC = () => {
 
   const totalAmount = shipmentItems.reduce((sum, item) => sum + item.total_price, 0);
 
-  // PDF.js worker'ı yükle (public klasöründen)
-  useEffect(() => {
-    // Worker'ı public klasöründen yükle - Vite production build'de public klasörünü olduğu gibi kopyalar
-    // Bu dosya public/pdf.worker.min.mjs olarak build'e dahil edilir ve root'tan erişilebilir
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
-  }, []);
-
-  // PDF yükleme ve parsing
-  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.type !== "application/pdf") {
-      alert("Lütfen bir PDF dosyası seçin");
+  // B2B URL'den sipariş bilgilerini çek
+  const handleParseUrl = async () => {
+    if (!b2bUrl.trim()) {
+      alert("Lütfen bir URL girin");
       return;
     }
 
-    setParsingPdf(true);
+    setParsingUrl(true);
     try {
-      // PDF'yi array buffer olarak oku
-      const arrayBuffer = await file.arrayBuffer();
+      const response = await apiClient.post("/shipments/parse-order-url", { url: b2bUrl });
+      setParsedProducts(response.data.products || []);
       
-      // PDF.js ile PDF'i yükle
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      
-      // Tüm sayfalardan text çıkar
-      let fullText = "";
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        // Text items'ları satır satır birleştir (daha iyi format için)
-        const pageLines: string[] = [];
-        let currentLine = "";
-        let lastY = -1;
-        
-        for (const item of textContent.items as any[]) {
-          const itemY = item.transform?.[5] || 0;
-          
-          // Yükseklik değiştiyse yeni satır
-          if (lastY !== -1 && Math.abs(itemY - lastY) > 5) {
-            if (currentLine.trim()) {
-              pageLines.push(currentLine.trim());
-            }
-            currentLine = "";
-          }
-          
-          currentLine += (item.str || "");
-          lastY = itemY;
-        }
-        
-        // Son satırı ekle
-        if (currentLine.trim()) {
-          pageLines.push(currentLine.trim());
-        }
-        
-        fullText += pageLines.join("\n") + "\n";
-      }
-
-      console.log("PDF text extraction tamamlandı, text uzunluğu:", fullText.length);
-      console.log("PDF text önizleme (ilk 500 karakter):", fullText.substring(0, 500));
-
-      // Backend'e text'i gönder ve parse et
-      const response = await apiClient.post("/shipments/parse-pdf", { text: fullText });
-      setParsedPdfProducts(response.data.products || []);
-      
-      // PDF'deki tarihi formData'ya ekle (varsa)
+      // Tarihi formData'ya ekle (varsa)
       if (response.data.date) {
-        // "12.12.2025" formatını "2025-12-12" formatına çevir
-        const dateParts = response.data.date.split(".");
-        if (dateParts.length === 3) {
-          const formattedDate = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`;
-          setFormData({ ...formData, date: formattedDate });
-        }
+        setFormData({ ...formData, date: response.data.date });
       }
       
       if (response.data.products && response.data.products.length > 0) {
-        alert(`${response.data.products.length} ürün bulundu`);
+        alert(`${response.data.products.length} ürün bulundu. Lütfen bilgileri kontrol edin ve onaylayın.`);
       } else {
-        alert("PDF parse edildi ancak ürün bulunamadı. PDF formatını kontrol edin.");
+        alert("Sipariş parse edildi ancak ürün bulunamadı.");
       }
     } catch (err: any) {
-      console.error("PDF parsing hatası:", err);
-      const errorMessage = err.response?.data?.error || err.message || "PDF parse edilemedi";
-      alert(`PDF parse hatası: ${errorMessage}`);
+      console.error("URL parsing hatası:", err);
+      const errorMessage = err.response?.data?.error || err.message || "URL parse edilemedi";
+      alert(`URL parse hatası: ${errorMessage}`);
     } finally {
-      setParsingPdf(false);
-      // Input'u temizle
-      e.target.value = "";
+      setParsingUrl(false);
     }
   };
 
-  // Parse edilen ürünleri sevkiyat items'ına çevir
-  const useParsedProducts = () => {
-    if (parsedPdfProducts.length === 0) {
-      alert("Kullanılacak ürün bulunamadı");
+  // Parse edilen ürünleri onayla ve sevkiyat oluştur
+  const handleConfirmAndCreate = async () => {
+    if (parsedProducts.length === 0) {
+      alert("Onaylanacak ürün bulunamadı");
       return;
     }
 
-    // Eşleşen ürünleri items'a ekle
-    const newItems: ShipmentItem[] = parsedPdfProducts
-      .filter((p: any) => p.matched_product_id) // Sadece eşleşen ürünler
-      .map((p: any) => ({
-        product_id: p.matched_product_id,
-        product_name: p.matched_product_name || p.product_name,
-        quantity: p.quantity,
-        unit_price: p.unit_price,
-        total_price: p.total_amount,
-      }));
+    // Tüm ürünleri (eşleşen ve eşleşmeyen) items'a çevir
+    // Eşleşmeyen ürünler için product_id = 0 gönder, backend otomatik oluşturacak
+    const itemsToSend = parsedProducts.map((p: any) => ({
+      product_id: p.matched_product_id || 0, // Eşleşme yoksa 0 (otomatik oluşturulacak)
+      product_name: p.product_name,
+      stock_code: p.stock_code || "",
+      unit: p.quantity_unit || "Adet",
+      quantity: p.quantity,
+      unit_price: p.unit_price,
+    }));
 
-    if (newItems.length === 0) {
-      alert("Eşleşen ürün bulunamadı. Lütfen önce ürünleri sisteme ekleyin.");
-      return;
+    setSubmitting(true);
+    try {
+      const response = await apiClient.post("/shipments", {
+        date: formData.date,
+        note: formData.note || `B2B Sipariş - ${parsedProducts[0]?.order_number || ""}`,
+        items: itemsToSend,
+      });
+
+      alert("Sevkiyat başarıyla oluşturuldu!");
+      setParsedProducts([]);
+      setB2bUrl("");
+      setShowUrlInput(false);
+      setShowForm(false);
+      setFormData({
+        date: new Date().toISOString().split("T")[0],
+        note: "",
+      });
+      fetchShipments();
+    } catch (err: any) {
+      console.error("Sevkiyat oluşturma hatası:", err);
+      const errorMessage = err.response?.data?.error || err.message || "Sevkiyat oluşturulamadı";
+      alert(`Hata: ${errorMessage}`);
+    } finally {
+      setSubmitting(false);
     }
-
-    setShipmentItems([...shipmentItems, ...newItems]);
-    setShowPdfUpload(false);
-    setParsedPdfProducts([]);
-    setShowForm(true);
-    alert(`${newItems.length} ürün sevkiyata eklendi`);
   };
 
   return (
@@ -462,14 +417,15 @@ export const ShipmentsPage: React.FC = () => {
         <div className="flex gap-2">
           <button
             onClick={() => {
-              setShowPdfUpload(!showPdfUpload);
-              if (showPdfUpload) {
-                setParsedPdfProducts([]);
+              setShowUrlInput(!showUrlInput);
+              if (showUrlInput) {
+                setParsedProducts([]);
+                setB2bUrl("");
               }
             }}
             className="px-4 py-2 rounded-lg text-sm transition-colors bg-blue-600 hover:bg-blue-700 text-white"
           >
-            {showPdfUpload ? "PDF Yüklemeyi İptal" : "PDF'den Yükle"}
+            {showUrlInput ? "URL İşlemini İptal" : "B2B Sipariş Linkinden Yükle"}
           </button>
           <button
             onClick={() => setShowForm(!showForm)}
@@ -480,44 +436,52 @@ export const ShipmentsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* PDF Yükleme */}
-      {showPdfUpload && (
+      {/* B2B URL Input */}
+      {showUrlInput && (
         <div className="bg-white/80 rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">PDF'den Sevkiyat Yükle</h2>
+          <h2 className="text-sm font-semibold mb-3">B2B Sipariş Linkinden Yükle</h2>
           
           <div className="mb-4">
             <label className="block text-xs text-[#555555] mb-2">
-              PDF Dosyası Seçin
+              Sipariş Detay URL'ini Girin
             </label>
             <input
-              type="file"
-              accept="application/pdf"
-              onChange={handlePdfUpload}
-              disabled={parsingPdf}
+              type="url"
+              value={b2bUrl}
+              onChange={(e) => setB2bUrl(e.target.value)}
+              disabled={parsingUrl}
+              placeholder="https://b2b.cadininevi.com.tr/Store/OrderDetail/..."
               className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
             />
-            {parsingPdf && (
-              <p className="text-xs text-[#555555] mt-2">PDF işleniyor...</p>
-            )}
+            <button
+              onClick={handleParseUrl}
+              disabled={parsingUrl || !b2bUrl.trim()}
+              className="mt-2 px-4 py-2 rounded-lg text-sm transition-colors bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white"
+            >
+              {parsingUrl ? "Parse Ediliyor..." : "Parse Et"}
+            </button>
           </div>
 
           {/* Parse edilen ürünler önizleme */}
-          {parsedPdfProducts.length > 0 && (
+          {parsedProducts.length > 0 && (
             <div className="mt-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold">
-                  Bulunan Ürünler ({parsedPdfProducts.length})
+                  Bulunan Ürünler ({parsedProducts.length})
                 </h3>
-                <button
-                  onClick={useParsedProducts}
-                  className="px-4 py-2 rounded-lg text-sm transition-colors bg-green-600 hover:bg-green-700 text-white"
-                >
-                  Eşleşen Ürünleri Ekle
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleConfirmAndCreate}
+                    disabled={submitting}
+                    className="px-4 py-2 rounded-lg text-sm transition-colors bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white"
+                  >
+                    {submitting ? "Kaydediliyor..." : "Onayla ve Sevkiyat Oluştur"}
+                  </button>
+                </div>
               </div>
               
               <div className="space-y-2 max-h-96 overflow-y-auto">
-                {parsedPdfProducts.map((p: any, idx: number) => (
+                {parsedProducts.map((p: any, idx: number) => (
                   <div
                     key={idx}
                     className={`p-3 rounded-xl border ${
@@ -539,7 +503,7 @@ export const ShipmentsPage: React.FC = () => {
                           </div>
                         ) : (
                           <div className="text-xs text-yellow-600 mt-1">
-                            ⚠ Eşleşme bulunamadı - Lütfen ürünü sisteme ekleyin
+                            ⚠ Eşleşme bulunamadı - Otomatik olarak yeni ürün oluşturulacak
                           </div>
                         )}
                       </div>
