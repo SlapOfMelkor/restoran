@@ -6,9 +6,9 @@ import "time"
 type ProduceWaste struct {
 	ID          uint    `gorm:"primaryKey"`
 	BranchID    uint    `gorm:"index;not null"`
-	Branch      Branch
+	Branch      Branch  `gorm:"foreignKey:BranchID"`
 	ProductID   uint    `gorm:"index;not null"` // ProduceProduct ID
-	Product     ProduceProduct
+	Product     ProduceProduct `gorm:"foreignKey:ProductID"`
 	PurchaseID  *uint     `gorm:"index"` // Hangi alım kaydından zayiat (opsiyonel)
 	Quantity    float64   `gorm:"not null"` // zayiat miktarı
 	Date        time.Time `gorm:"index;not null"`

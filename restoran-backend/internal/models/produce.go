@@ -6,9 +6,9 @@ import "time"
 type ProducePurchase struct {
 	ID          uint    `gorm:"primaryKey"`
 	BranchID    uint    `gorm:"index;not null"`
-	Branch      Branch
+	Branch      Branch  `gorm:"foreignKey:BranchID"`
 	ProductID   uint    `gorm:"index;not null"` // ProduceProduct ID
-	Product     ProduceProduct
+	Product     ProduceProduct `gorm:"foreignKey:ProductID"`
 	Quantity    float64 `gorm:"not null"` // miktar (kg, adet vs.)
 	UnitPrice   float64 `gorm:"not null"` // birim fiyat
 	TotalAmount float64 `gorm:"not null"` // toplam tutar (quantity * unit_price)

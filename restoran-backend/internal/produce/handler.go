@@ -197,7 +197,7 @@ func CreateProducePurchaseHandler() fiber.Handler {
 		}
 
 		if err := database.DB.Create(&purchase).Error; err != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, "Alım kaydedilemedi")
+			return fiber.NewError(fiber.StatusInternalServerError, fmt.Sprintf("Alım kaydedilemedi: %v", err))
 		}
 
 		// Audit log yaz
