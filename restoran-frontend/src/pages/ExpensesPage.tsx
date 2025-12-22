@@ -18,6 +18,13 @@ interface Expense {
   description: string;
 }
 
+interface ExpenseWithLog extends Expense {
+  created_by_user_id?: number;
+  created_by_user_name?: string;
+  log_id?: number;
+  is_undone?: boolean;
+}
+
 interface ExpensePayment {
   id: number;
   branch_id: number;
@@ -26,6 +33,28 @@ interface ExpensePayment {
   amount: number;
   date: string;
   description: string;
+}
+
+interface ExpensePaymentWithLog extends ExpensePayment {
+  created_by_user_id?: number;
+  created_by_user_name?: string;
+  log_id?: number;
+  is_undone?: boolean;
+}
+
+interface AuditLog {
+  id: number;
+  created_at: string;
+  branch_id: number | null;
+  user_id: number;
+  user_name: string;
+  entity_type: string;
+  entity_id: number;
+  action: "create" | "update" | "delete" | "undo";
+  description: string;
+  is_undone: boolean;
+  undone_by: number | null;
+  undone_at: string | null;
 }
 
 interface CategoryBalance {
@@ -45,8 +74,8 @@ export const ExpensesPage: React.FC = () => {
   const { user, selectedBranchId } = useAuth();
   const [categories, setCategories] = useState<ExpenseCategory[]>([]);
   const [categoryBalances, setCategoryBalances] = useState<CategoryBalance[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [expensePayments, setExpensePayments] = useState<ExpensePayment[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseWithLog[]>([]);
+  const [expensePayments, setExpensePayments] = useState<ExpensePaymentWithLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [categoryFormData, setCategoryFormData] = useState({ name: "" });
@@ -107,8 +136,40 @@ export const ExpensesPage: React.FC = () => {
       if (categoryId) {
         params.category_id = categoryId;
       }
-      const res = await apiClient.get("/expenses", { params });
-      setExpenses(res.data || []);
+      const expensesRes = await apiClient.get("/expenses", { params });
+
+      // Audit log'ları çek
+      const logParams: any = {
+        entity_type: "expense",
+      };
+      if (user?.role === "super_admin") {
+        if (selectedBranchId) {
+          logParams.branch_id = selectedBranchId;
+        }
+      } else if (user?.role === "branch_admin" && user.branch_id) {
+        logParams.branch_id = user.branch_id;
+      }
+      const logsRes = await apiClient.get("/audit-logs", { params: logParams });
+
+      // Expenses'i log'larla birleştir
+      const expensesWithLogs: ExpenseWithLog[] = (expensesRes.data || []).map((expense: Expense) => {
+        const createLog = logsRes.data.find(
+          (log: AuditLog) =>
+            log.entity_type === "expense" &&
+            log.entity_id === expense.id &&
+            log.action === "create"
+        );
+
+        return {
+          ...expense,
+          created_by_user_id: createLog?.user_id,
+          created_by_user_name: createLog?.user_name,
+          log_id: createLog?.id,
+          is_undone: createLog?.is_undone || false,
+        };
+      });
+
+      setExpenses(expensesWithLogs);
     } catch (err) {
       console.error("Giderler yüklenemedi:", err);
     }
@@ -123,8 +184,40 @@ export const ExpensesPage: React.FC = () => {
       if (categoryId) {
         params.category_id = categoryId;
       }
-      const res = await apiClient.get("/expense-payments", { params });
-      setExpensePayments(res.data || []);
+      const paymentsRes = await apiClient.get("/expense-payments", { params });
+
+      // Audit log'ları çek
+      const logParams: any = {
+        entity_type: "expense_payment",
+      };
+      if (user?.role === "super_admin") {
+        if (selectedBranchId) {
+          logParams.branch_id = selectedBranchId;
+        }
+      } else if (user?.role === "branch_admin" && user.branch_id) {
+        logParams.branch_id = user.branch_id;
+      }
+      const logsRes = await apiClient.get("/audit-logs", { params: logParams });
+
+      // Payments'i log'larla birleştir
+      const paymentsWithLogs: ExpensePaymentWithLog[] = (paymentsRes.data || []).map((payment: ExpensePayment) => {
+        const createLog = logsRes.data.find(
+          (log: AuditLog) =>
+            log.entity_type === "expense_payment" &&
+            log.entity_id === payment.id &&
+            log.action === "create"
+        );
+
+        return {
+          ...payment,
+          created_by_user_id: createLog?.user_id,
+          created_by_user_name: createLog?.user_name,
+          log_id: createLog?.id,
+          is_undone: createLog?.is_undone || false,
+        };
+      });
+
+      setExpensePayments(paymentsWithLogs);
     } catch (err) {
       console.error("Gider ödemeleri yüklenemedi:", err);
     }
@@ -261,6 +354,56 @@ export const ExpensesPage: React.FC = () => {
 
   const getCategoryPayments = (categoryId: number) => {
     return expensePayments.filter((pay) => pay.category_id === categoryId);
+  };
+
+  const handleUndoExpense = async (logId: number, expenseId: number) => {
+    if (!confirm("Bu gider kaydını geri almak istediğinize emin misiniz?")) {
+      return;
+    }
+
+    try {
+      await apiClient.post(`/audit-logs/${logId}/undo`);
+      alert("Gider kaydı başarıyla geri alındı");
+      fetchExpenses();
+      fetchCategoryBalances();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Geri alma işlemi başarısız");
+    }
+  };
+
+  const handleUndoPayment = async (logId: number, paymentId: number) => {
+    if (!confirm("Bu ödeme kaydını geri almak istediğinize emin misiniz?")) {
+      return;
+    }
+
+    try {
+      await apiClient.post(`/audit-logs/${logId}/undo`);
+      alert("Ödeme kaydı başarıyla geri alındı");
+      fetchExpensePayments();
+      fetchCategoryBalances();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Geri alma işlemi başarısız");
+    }
+  };
+
+  const canUndoExpense = (expense: ExpenseWithLog): boolean => {
+    if (!expense.log_id || expense.is_undone) {
+      return false;
+    }
+    if (user?.role === "super_admin") {
+      return true;
+    }
+    return expense.created_by_user_id === user?.id;
+  };
+
+  const canUndoPayment = (payment: ExpensePaymentWithLog): boolean => {
+    if (!payment.log_id || payment.is_undone) {
+      return false;
+    }
+    if (user?.role === "super_admin") {
+      return true;
+    }
+    return payment.created_by_user_id === user?.id;
   };
 
 
@@ -617,19 +760,41 @@ export const ExpensesPage: React.FC = () => {
                       getCategoryExpenses(selectedCategoryId).map((exp) => (
                         <div
                           key={exp.id}
-                          className="p-2 bg-white rounded border border-[#E5E5E5]"
+                          className={`p-2 bg-white rounded border ${
+                            exp.is_undone
+                              ? "border-[#CCCCCC] opacity-60"
+                              : "border-[#E5E5E5]"
+                          }`}
                         >
                           <div className="flex justify-between items-center">
-                            <div>
-                              <div className="text-xs font-medium">{exp.date}</div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <div className="text-xs font-medium">{exp.date}</div>
+                                {exp.is_undone && (
+                                  <>
+                                    <span className="text-xs text-slate-500">•</span>
+                                    <span className="text-xs text-yellow-400">(Geri Alındı)</span>
+                                  </>
+                                )}
+                              </div>
                               {exp.description && (
                                 <div className="text-xs text-[#555555]">
                                   {exp.description}
                                 </div>
                               )}
                             </div>
-                            <div className="text-xs font-bold text-red-600">
-                              {exp.amount.toFixed(2)} TL
+                            <div className="flex items-center gap-2">
+                              <div className="text-xs font-bold text-red-600">
+                                {exp.amount.toFixed(2)} TL
+                              </div>
+                              {exp.log_id && canUndoExpense(exp) && (
+                                <button
+                                  onClick={() => handleUndoExpense(exp.log_id!, exp.id)}
+                                  className="px-2 py-1 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors text-white whitespace-nowrap"
+                                >
+                                  Geri Al
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -648,19 +813,41 @@ export const ExpensesPage: React.FC = () => {
                       getCategoryPayments(selectedCategoryId).map((pay) => (
                         <div
                           key={pay.id}
-                          className="p-2 bg-white rounded border border-[#E5E5E5]"
+                          className={`p-2 bg-white rounded border ${
+                            pay.is_undone
+                              ? "border-[#CCCCCC] opacity-60"
+                              : "border-[#E5E5E5]"
+                          }`}
                         >
                           <div className="flex justify-between items-center">
-                            <div>
-                              <div className="text-xs font-medium">{pay.date}</div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <div className="text-xs font-medium">{pay.date}</div>
+                                {pay.is_undone && (
+                                  <>
+                                    <span className="text-xs text-slate-500">•</span>
+                                    <span className="text-xs text-yellow-400">(Geri Alındı)</span>
+                                  </>
+                                )}
+                              </div>
                               {pay.description && (
                                 <div className="text-xs text-[#555555]">
                                   {pay.description}
                                 </div>
                               )}
                             </div>
-                            <div className="text-xs font-bold text-green-600">
-                              {pay.amount.toFixed(2)} TL
+                            <div className="flex items-center gap-2">
+                              <div className="text-xs font-bold text-green-600">
+                                {pay.amount.toFixed(2)} TL
+                              </div>
+                              {pay.log_id && canUndoPayment(pay) && (
+                                <button
+                                  onClick={() => handleUndoPayment(pay.log_id!, pay.id)}
+                                  className="px-2 py-1 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors text-white whitespace-nowrap"
+                                >
+                                  Geri Al
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>

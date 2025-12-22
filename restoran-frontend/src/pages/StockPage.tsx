@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
+import { Modal } from "../components/Modal";
 
 interface Product {
   id: number;
@@ -52,18 +53,6 @@ interface StockUsageRow {
   used_qty: number;
 }
 
-interface StockUsageBetweenCounts {
-  product_id: number;
-  product_name: string;
-  unit: string;
-  previous_count: number;
-  previous_count_date: string;
-  shipments_between: number;
-  current_count: number;
-  current_count_date: string;
-  usage: number;
-}
-
 interface AuditLog {
   id: number;
   created_at: string;
@@ -94,12 +83,10 @@ export const StockPage: React.FC = () => {
   const [currentStock, setCurrentStock] = useState<CurrentStock[]>([]);
   const [stockEntries, setStockEntries] = useState<StockEntryWithLog[]>([]);
   const [stockUsage, setStockUsage] = useState<StockUsageRow[]>([]);
-  const [usageBetweenCounts, setUsageBetweenCounts] = useState<StockUsageBetweenCounts[]>([]);
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showEntries, setShowEntries] = useState(true);
-  const [showUsageBetween, setShowUsageBetween] = useState(false);
   const [showCurrentStock, setShowCurrentStock] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
@@ -108,6 +95,8 @@ export const StockPage: React.FC = () => {
   const [stockItems, setStockItems] = useState<StockEntryItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentStockSearchQuery, setCurrentStockSearchQuery] = useState("");
+  const [monthlyReportSearchQuery, setMonthlyReportSearchQuery] = useState("");
 
   // localStorage'dan draft'ı yükle
   useEffect(() => {
@@ -230,18 +219,6 @@ export const StockPage: React.FC = () => {
     }
   };
 
-  const fetchUsageBetweenCounts = async () => {
-    try {
-      const params: any = {};
-      if (user?.role === "super_admin" && selectedBranchId) {
-        params.branch_id = selectedBranchId;
-      }
-      const res = await apiClient.get("/stock-entries/usage-between-counts", { params });
-      setUsageBetweenCounts(res.data.rows || []);
-    } catch (err) {
-      console.error("Sayımlar arası kullanım yüklenemedi:", err);
-    }
-  };
 
   const [reportData, setReportData] = useState({
     year: new Date().getFullYear(),
@@ -255,10 +232,7 @@ export const StockPage: React.FC = () => {
     if (showReport) {
       fetchStockUsage();
     }
-    if (showUsageBetween) {
-      fetchUsageBetweenCounts();
-    }
-  }, [user, selectedBranchId, showReport, reportData, showUsageBetween]);
+  }, [user, selectedBranchId, showReport, reportData]);
 
   const updateItem = (productId: number, quantity: string) => {
     const newItems = stockItems.map((item) =>
@@ -320,6 +294,7 @@ export const StockPage: React.FC = () => {
       })));
       localStorage.removeItem(STORAGE_KEY);
       setShowForm(false);
+      setSearchQuery("");
       fetchCurrentStock();
       fetchStockEntries();
     } catch (err: any) {
@@ -434,10 +409,10 @@ export const StockPage: React.FC = () => {
         </p>
         <div className="flex gap-2">
           <button
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => setShowForm(true)}
             className="px-4 py-2 rounded-lg text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
           >
-            {showForm ? "Formu Gizle" : "Stok Sayımı"}
+            Stok Sayımı
           </button>
           <button
             onClick={() => setShowCurrentStock(true)}
@@ -446,10 +421,10 @@ export const StockPage: React.FC = () => {
             Mevcut Stok Durumu
           </button>
           <button
-            onClick={() => setShowReport(!showReport)}
+            onClick={() => setShowReport(true)}
             className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
           >
-            {showReport ? "Raporu Gizle" : "Aylık Harcama"}
+            Aylık Harcama
           </button>
           <button
             onClick={() => setShowEntries(!showEntries)}
@@ -457,137 +432,135 @@ export const StockPage: React.FC = () => {
           >
             {showEntries ? "Girişleri Gizle" : "Stok Girişleri"}
           </button>
-          <button
-            onClick={() => {
-              setShowUsageBetween(!showUsageBetween);
-              if (!showUsageBetween) {
-                fetchUsageBetweenCounts();
-              }
-            }}
-            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 rounded-lg text-sm transition-colors"
-          >
-            {showUsageBetween ? "Kullanımı Gizle" : "Sayımlar Arası Kullanım"}
-          </button>
         </div>
       </div>
 
-      {/* Mevcut Stok Durumu Popup */}
-      {showCurrentStock && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-lg max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
-            {/* Popup Header */}
-            <div className="flex items-center justify-between p-4 border-b border-[#E5E5E5]">
-              <h2 className="text-lg font-semibold">Mevcut Stok Durumu</h2>
-              <button
-                onClick={() => setShowCurrentStock(false)}
-                className="p-2 rounded-lg hover:bg-[#E5E5E5] transition-colors text-[#8F1A9F]"
-                aria-label="Kapat"
-              >
-                <span className="text-xl">×</span>
-              </button>
-            </div>
+      {/* Mevcut Stok Durumu Modal */}
+      <Modal
+        isOpen={showCurrentStock}
+        onClose={() => {
+          setShowCurrentStock(false);
+          setCurrentStockSearchQuery("");
+        }}
+        title="Mevcut Stok Durumu"
+        maxWidth="xl"
+      >
+        <div className="space-y-4">
+          {/* Filtreleme */}
+          <div>
+            <input
+              type="text"
+              value={currentStockSearchQuery}
+              onChange={(e) => setCurrentStockSearchQuery(e.target.value)}
+              placeholder="Ürün ara..."
+              className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+            />
+          </div>
 
-            {/* Popup Content */}
-            <div className="flex-1 overflow-y-auto p-4">
-              {currentStock.length === 0 ? (
-                <p className="text-xs text-[#222222] text-center py-8">
-                  Henüz stok girişi yok
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-700">
-                        <th className="text-left p-2">Ürün</th>
-                        <th className="text-right p-2">Miktar</th>
-                        <th className="text-right p-2">Son Güncelleme</th>
+          {/* Tablo */}
+          {currentStock.length === 0 ? (
+            <p className="text-xs text-[#222222] text-center py-8">
+              Henüz stok girişi yok
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-700">
+                    <th className="text-left p-2">Ürün</th>
+                    <th className="text-right p-2">Miktar</th>
+                    <th className="text-right p-2">Son Güncelleme</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentStock
+                    .filter((stock) =>
+                      stock.product_name.toLowerCase().includes(currentStockSearchQuery.toLowerCase())
+                    )
+                    .map((stock) => (
+                      <tr key={stock.product_id} className="border-b border-slate-800">
+                        <td className="p-2">
+                          <div className="font-medium">{stock.product_name}</div>
+                          <div className="text-[#222222] text-xs">{stock.unit}</div>
+                        </td>
+                        <td className="text-right p-2 font-semibold">
+                          {stock.quantity.toFixed(2)}
+                        </td>
+                        <td className="text-right p-2 text-[#222222]">
+                          {stock.last_update || "Henüz giriş yok"}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {currentStock.map((stock) => (
-                        <tr key={stock.product_id} className="border-b border-slate-800">
-                          <td className="p-2">
-                            <div className="font-medium">{stock.product_name}</div>
-                            <div className="text-[#222222] text-xs">{stock.unit}</div>
-                          </td>
-                          <td className="text-right p-2 font-semibold">
-                            {stock.quantity.toFixed(2)}
-                          </td>
-                          <td className="text-right p-2 text-[#222222]">
-                            {stock.last_update || "Henüz giriş yok"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                </tbody>
+              </table>
+              {currentStockSearchQuery && currentStock.filter((stock) =>
+                stock.product_name.toLowerCase().includes(currentStockSearchQuery.toLowerCase())
+              ).length === 0 && (
+                <p className="text-xs text-slate-500 py-4 text-center">
+                  "{currentStockSearchQuery}" için sonuç bulunamadı
+                </p>
               )}
             </div>
-
-            {/* Popup Footer */}
-            <div className="p-4 border-t border-[#E5E5E5] flex justify-end">
-              <button
-                onClick={() => setShowCurrentStock(false)}
-                className="px-4 py-2 rounded-lg text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
-              >
-                Kapat
-              </button>
-            </div>
-          </div>
+          )}
         </div>
-      )}
+      </Modal>
 
-      {/* Stok Sayımı Formu - Tablo Formatı */}
-      {showForm && (
-        <div className="bg-white/80 rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">Yeni Stok Sayımı Ekle</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs text-[#555555] mb-1">Sayım Tarihi</label>
-              <input
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                required
-              />
-            </div>
+      {/* Stok Sayımı Modal */}
+      <Modal
+        isOpen={showForm}
+        onClose={() => {
+          setShowForm(false);
+          setSearchQuery("");
+        }}
+        title="Yeni Stok Sayımı Ekle"
+        maxWidth="xl"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs text-[#555555] mb-1">Sayım Tarihi</label>
+            <input
+              type="date"
+              value={formData.date}
+              onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+              required
+            />
+          </div>
 
-            {/* Ürün Tablosu */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs text-[#555555]">Ürünler ve Miktarlar</label>
-                {stockItems.length > 0 && (
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Ürün ara..."
-                    className="w-48 bg-white border border-[#E5E5E5] rounded px-3 py-1.5 text-xs text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                  />
-                )}
-              </div>
-              {stockItems.length === 0 ? (
-                <p className="text-xs text-slate-500 py-4 text-center">
-                  Henüz ürün eklenmemiş. Ürün yönetimi sayfasından ürün ekleyin.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-700">
-                        <th className="text-left p-2">Ürün</th>
-                        <th className="text-right p-2">Birim</th>
-                        <th className="text-right p-2">Mevcut Stok</th>
-                        <th className="text-right p-2">Sayım Miktarı</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {stockItems
-                        .filter((item) =>
-                          item.product_name.toLowerCase().includes(searchQuery.toLowerCase())
-                        )
-                        .map((item) => {
+          {/* Filtreleme */}
+          <div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Ürün ara..."
+              className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+            />
+          </div>
+
+          {/* Ürün Tablosu */}
+          <div>
+            {stockItems.length === 0 ? (
+              <p className="text-xs text-slate-500 py-4 text-center">
+                Henüz ürün eklenmemiş. Ürün yönetimi sayfasından ürün ekleyin.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-700">
+                      <th className="text-left p-2">Ürün</th>
+                      <th className="text-right p-2">Birim</th>
+                      <th className="text-right p-2">Mevcut Stok</th>
+                      <th className="text-right p-2">Sayım Miktarı</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stockItems
+                      .filter((item) =>
+                        item.product_name.toLowerCase().includes(searchQuery.toLowerCase())
+                      )
+                      .map((item) => {
                         const currentStockItem = currentStock.find(
                           (cs) => cs.product_id === item.product_id
                         );
@@ -616,49 +589,58 @@ export const StockPage: React.FC = () => {
                           </tr>
                         );
                       })}
-                    </tbody>
-                  </table>
-                  {searchQuery && stockItems.filter((item) =>
-                    item.product_name.toLowerCase().includes(searchQuery.toLowerCase())
-                  ).length === 0 && (
-                    <p className="text-xs text-slate-500 py-4 text-center">
-                      "{searchQuery}" için sonuç bulunamadı
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
+                  </tbody>
+                </table>
+                {searchQuery && stockItems.filter((item) =>
+                  item.product_name.toLowerCase().includes(searchQuery.toLowerCase())
+                ).length === 0 && (
+                  <p className="text-xs text-slate-500 py-4 text-center">
+                    "{searchQuery}" için sonuç bulunamadı
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={submitting || stockItems.length === 0}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded text-sm transition-colors"
-              >
-                {submitting ? "Kaydediliyor..." : "Stok Sayımını Kaydet"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setFormData({
-                    date: new Date().toISOString().split("T")[0],
-                  });
-                  setStockItems(products.map((product) => ({
-                    product_id: product.id,
-                    product_name: product.name,
-                    unit: product.unit,
-                    quantity: "",
-                  })));
-                  localStorage.removeItem(STORAGE_KEY);
-                }}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors"
-              >
-                Temizle
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={submitting || stockItems.length === 0}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded text-sm transition-colors text-white"
+            >
+              {submitting ? "Kaydediliyor..." : "Stok Sayımını Kaydet"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFormData({
+                  date: new Date().toISOString().split("T")[0],
+                });
+                setStockItems(products.map((product) => ({
+                  product_id: product.id,
+                  product_name: product.name,
+                  unit: product.unit,
+                  quantity: "",
+                })));
+                localStorage.removeItem(STORAGE_KEY);
+              }}
+              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors text-white"
+            >
+              Temizle
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(false);
+                setSearchQuery("");
+              }}
+              className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+            >
+              İptal
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Stok Girişleri */}
       {showEntries && (
@@ -793,104 +775,61 @@ export const StockPage: React.FC = () => {
         </div>
       )}
 
-      {/* Son İki Sayım Arası Kullanım */}
-      {showUsageBetween && (
-        <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">Son İki Sayım Arası Kullanım</h2>
-          {usageBetweenCounts.length === 0 ? (
-            <p className="text-xs text-[#222222]">
-              En az 2 stok sayımı olan ürünler için kullanım bilgisi gösterilir
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-slate-700">
-                    <th className="text-left p-2">Ürün</th>
-                    <th className="text-right p-2">Önceki Sayım</th>
-                    <th className="text-right p-2">Önceki Tarih</th>
-                    <th className="text-right p-2">Aradaki Sevkiyat</th>
-                    <th className="text-right p-2">Son Sayım</th>
-                    <th className="text-right p-2">Son Tarih</th>
-                    <th className="text-right p-2">Kullanım</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usageBetweenCounts.map((row) => (
-                    <tr
-                      key={row.product_id}
-                      className="border-b border-slate-800"
-                    >
-                      <td className="p-2">
-                        <div className="font-medium">{row.product_name}</div>
-                        <div className="text-[#222222] text-xs">
-                          {row.unit}
-                        </div>
-                      </td>
-                      <td className="text-right p-2 text-slate-300">
-                        {row.previous_count.toFixed(2)}
-                      </td>
-                      <td className="text-right p-2 text-[#222222] text-xs">
-                        {row.previous_count_date}
-                      </td>
-                      <td className="text-right p-2 text-emerald-400">
-                        +{row.shipments_between.toFixed(2)}
-                      </td>
-                      <td className="text-right p-2 text-slate-300">
-                        {row.current_count.toFixed(2)}
-                      </td>
-                      <td className="text-right p-2 text-[#222222] text-xs">
-                        {row.current_count_date}
-                      </td>
-                      <td className="text-right p-2 text-red-400 font-semibold">
-                        {row.usage.toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Aylık Harcama Raporu */}
-      {showReport && (
-        <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold">Aylık Harcama Raporu</h2>
-            <div className="flex gap-2">
-              <input
-                type="number"
-                value={reportData.year}
-                onChange={(e) =>
-                  setReportData({
-                    ...reportData,
-                    year: parseInt(e.target.value) || new Date().getFullYear(),
-                  })
-                }
-                className="w-20 bg-white border border-[#E5E5E5] rounded px-2 py-1 text-xs text-[#000000]"
-                placeholder="Yıl"
-              />
-              <select
-                value={reportData.month}
-                onChange={(e) =>
-                  setReportData({
-                    ...reportData,
-                    month: parseInt(e.target.value) || 1,
-                  })
-                }
-                className="bg-white border border-[#E5E5E5] rounded px-2 py-1 text-xs text-[#000000]"
-              >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </div>
+      {/* Aylık Harcama Raporu Modal */}
+      <Modal
+        isOpen={showReport}
+        onClose={() => {
+          setShowReport(false);
+          setMonthlyReportSearchQuery("");
+        }}
+        title="Aylık Harcama Raporu"
+        maxWidth="xl"
+      >
+        <div className="space-y-4">
+          {/* Tarih Seçimi */}
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={reportData.year}
+              onChange={(e) =>
+                setReportData({
+                  ...reportData,
+                  year: parseInt(e.target.value) || new Date().getFullYear(),
+                })
+              }
+              className="w-20 bg-white border border-[#E5E5E5] rounded px-2 py-1 text-xs text-[#000000]"
+              placeholder="Yıl"
+            />
+            <select
+              value={reportData.month}
+              onChange={(e) =>
+                setReportData({
+                  ...reportData,
+                  month: parseInt(e.target.value) || 1,
+                })
+              }
+              className="bg-white border border-[#E5E5E5] rounded px-2 py-1 text-xs text-[#000000]"
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
           </div>
 
+          {/* Filtreleme */}
+          <div>
+            <input
+              type="text"
+              value={monthlyReportSearchQuery}
+              onChange={(e) => setMonthlyReportSearchQuery(e.target.value)}
+              placeholder="Ürün ara..."
+              className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+            />
+          </div>
+
+          {/* Tablo */}
           {loading ? (
             <p className="text-xs text-[#222222]">Yükleniyor...</p>
           ) : stockUsage.length === 0 ? (
@@ -908,37 +847,48 @@ export const StockPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {stockUsage.map((row) => (
-                    <tr
-                      key={row.product_id}
-                      className="border-b border-slate-800"
-                    >
-                      <td className="p-2">
-                        <div className="font-medium">{row.product_name}</div>
-                        <div className="text-[#222222] text-xs">
-                          {row.unit}
-                        </div>
-                      </td>
-                      <td className="text-right p-2">
-                        {row.start_qty.toFixed(2)}
-                      </td>
-                      <td className="text-right p-2">
-                        {row.incoming_qty.toFixed(2)}
-                      </td>
-                      <td className="text-right p-2">
-                        {row.end_qty.toFixed(2)}
-                      </td>
-                      <td className="text-right p-2 text-red-400 font-semibold">
-                        {row.used_qty.toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
+                  {stockUsage
+                    .filter((row) =>
+                      row.product_name.toLowerCase().includes(monthlyReportSearchQuery.toLowerCase())
+                    )
+                    .map((row) => (
+                      <tr
+                        key={row.product_id}
+                        className="border-b border-slate-800"
+                      >
+                        <td className="p-2">
+                          <div className="font-medium">{row.product_name}</div>
+                          <div className="text-[#222222] text-xs">
+                            {row.unit}
+                          </div>
+                        </td>
+                        <td className="text-right p-2">
+                          {row.start_qty.toFixed(2)}
+                        </td>
+                        <td className="text-right p-2">
+                          {row.incoming_qty.toFixed(2)}
+                        </td>
+                        <td className="text-right p-2">
+                          {row.end_qty.toFixed(2)}
+                        </td>
+                        <td className="text-right p-2 text-red-400 font-semibold">
+                          {row.used_qty.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
+              {monthlyReportSearchQuery && stockUsage.filter((row) =>
+                row.product_name.toLowerCase().includes(monthlyReportSearchQuery.toLowerCase())
+              ).length === 0 && (
+                <p className="text-xs text-slate-500 py-4 text-center">
+                  "{monthlyReportSearchQuery}" için sonuç bulunamadı
+                </p>
+              )}
             </div>
           )}
         </div>
-      )}
+      </Modal>
     </div>
   );
 };

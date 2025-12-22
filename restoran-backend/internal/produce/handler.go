@@ -178,10 +178,10 @@ func CreateProducePurchaseHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Tarih formatı 'YYYY-MM-DD' olmalı")
 		}
 
-		// Ürün var mı?
+		// Ürün var mı ve manav ürünü mü kontrol et
 		var product models.Product
-		if err := database.DB.First(&product, "id = ?", body.ProductID).Error; err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, "Ürün bulunamadı")
+		if err := database.DB.First(&product, "id = ? AND is_center_product = ?", body.ProductID, false).Error; err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Manav ürünü bulunamadı")
 		}
 
 		totalAmount := body.Quantity * body.UnitPrice

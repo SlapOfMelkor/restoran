@@ -23,11 +23,25 @@ type UpdateProductCategoryRequest struct {
 	Name *string `json:"name"`
 }
 
-// GET /api/admin/product-categories
+// GET /api/admin/product-categories?is_center_product=true
 func ListProductCategoriesHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		dbq := database.DB.Model(&models.ProductCategory{})
+		
+		// is_center_product filter'ı (opsiyonel)
+		isCenterProductStr := c.Query("is_center_product")
+		if isCenterProductStr != "" {
+			var isCenterProduct bool
+			if isCenterProductStr == "true" {
+				isCenterProduct = true
+			} else if isCenterProductStr == "false" {
+				isCenterProduct = false
+			}
+			dbq = dbq.Where("is_center_product = ?", isCenterProduct)
+		}
+
 		var categories []models.ProductCategory
-		if err := database.DB.Order("name asc").Find(&categories).Error; err != nil {
+		if err := dbq.Order("name asc").Find(&categories).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Kategoriler listelenemedi")
 		}
 
@@ -57,7 +71,8 @@ func CreateProductCategoryHandler() fiber.Handler {
 		}
 
 		cat := models.ProductCategory{
-			Name: body.Name,
+			Name:            body.Name,
+			IsCenterProduct: true, // Normal kategori yönetimi için her zaman true
 		}
 
 		if err := database.DB.Create(&cat).Error; err != nil {

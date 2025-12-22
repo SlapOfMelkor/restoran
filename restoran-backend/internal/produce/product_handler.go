@@ -1,4 +1,4 @@
-package inventory
+package produce
 
 import (
 	"strings"
@@ -9,50 +9,36 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-type ProductResponse struct {
+type ProduceProductResponse struct {
 	ID        uint   `json:"id"`
 	Name      string `json:"name"`
 	Unit      string `json:"unit"`
 	StockCode string `json:"stock_code"`
 }
 
-type CreateProductRequest struct {
+type CreateProduceProductRequest struct {
 	Name      string `json:"name"`
 	Unit      string `json:"unit"`
-	StockCode string `json:"stock_code"` // Opsiyonel
+	StockCode string `json:"stock_code"`
 }
 
-type UpdateProductRequest struct {
+type UpdateProduceProductRequest struct {
 	Name      *string `json:"name"`
 	Unit      *string `json:"unit"`
-	StockCode *string `json:"stock_code"` // Opsiyonel
+	StockCode *string `json:"stock_code"`
 }
 
-// GET /api/products?is_center_product=true (tüm authenticated kullanıcılar görebilir)
-func ListProductsHandler() fiber.Handler {
+// GET /api/produce-products (manav ürünleri - IsCenterProduct = false)
+func ListProduceProductsHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		dbq := database.DB.Model(&models.Product{})
-		
-		// is_center_product filter'ı (opsiyonel)
-		isCenterProductStr := c.Query("is_center_product")
-		if isCenterProductStr != "" {
-			var isCenterProduct bool
-			if isCenterProductStr == "true" {
-				isCenterProduct = true
-			} else if isCenterProductStr == "false" {
-				isCenterProduct = false
-			}
-			dbq = dbq.Where("is_center_product = ?", isCenterProduct)
-		}
-
 		var products []models.Product
-		if err := dbq.Order("name asc").Find(&products).Error; err != nil {
+		if err := database.DB.Where("is_center_product = ?", false).Order("name asc").Find(&products).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler listelenemedi")
 		}
 
-		res := make([]ProductResponse, 0, len(products))
+		res := make([]ProduceProductResponse, 0, len(products))
 		for _, p := range products {
-			res = append(res, ProductResponse{
+			res = append(res, ProduceProductResponse{
 				ID:        p.ID,
 				Name:      p.Name,
 				Unit:      p.Unit,
@@ -63,10 +49,10 @@ func ListProductsHandler() fiber.Handler {
 	}
 }
 
-// POST /api/admin/products (sadece super_admin)
-func CreateProductHandler() fiber.Handler {
+// POST /api/produce-products
+func CreateProduceProductHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		var body CreateProductRequest
+		var body CreateProduceProductRequest
 		if err := c.BodyParser(&body); err != nil {
 			return fiber.NewError(fiber.StatusBadRequest, "Geçersiz veri")
 		}
@@ -91,14 +77,14 @@ func CreateProductHandler() fiber.Handler {
 			Name:            body.Name,
 			Unit:            body.Unit,
 			StockCode:       body.StockCode,
-			IsCenterProduct: true, // Normal ürün yönetimi için her zaman true
+			IsCenterProduct: false, // Manav ürünü
 		}
 
 		if err := database.DB.Create(&p).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Ürün oluşturulamadı")
 		}
 
-		return c.Status(fiber.StatusCreated).JSON(ProductResponse{
+		return c.Status(fiber.StatusCreated).JSON(ProduceProductResponse{
 			ID:        p.ID,
 			Name:      p.Name,
 			Unit:      p.Unit,
@@ -107,17 +93,17 @@ func CreateProductHandler() fiber.Handler {
 	}
 }
 
-// PUT /api/admin/products/:id
-func UpdateProductHandler() fiber.Handler {
+// PUT /api/produce-products/:id
+func UpdateProduceProductHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		id := c.Params("id")
 
 		var p models.Product
-		if err := database.DB.First(&p, "id = ?", id).Error; err != nil {
+		if err := database.DB.First(&p, "id = ? AND is_center_product = ?", id, false).Error; err != nil {
 			return fiber.NewError(fiber.StatusNotFound, "Ürün bulunamadı")
 		}
 
-		var body UpdateProductRequest
+		var body UpdateProduceProductRequest
 		if err := c.BodyParser(&body); err != nil {
 			return fiber.NewError(fiber.StatusBadRequest, "Geçersiz veri")
 		}
@@ -138,11 +124,23 @@ func UpdateProductHandler() fiber.Handler {
 			p.Unit = unit
 		}
 
+		if body.StockCode != nil {
+			stockCode := strings.TrimSpace(*body.StockCode)
+			// Eğer stok kodu değiştiriliyorsa ve boş değilse, unique kontrolü yap
+			if stockCode != "" && stockCode != p.StockCode {
+				var existingProduct models.Product
+				if err := database.DB.Where("stock_code = ? AND id != ?", stockCode, id).First(&existingProduct).Error; err == nil {
+					return fiber.NewError(fiber.StatusBadRequest, "Bu stok kodu zaten kullanılıyor")
+				}
+			}
+			p.StockCode = stockCode
+		}
+
 		if err := database.DB.Save(&p).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Ürün güncellenemedi")
 		}
 
-		return c.JSON(ProductResponse{
+		return c.JSON(ProduceProductResponse{
 			ID:        p.ID,
 			Name:      p.Name,
 			Unit:      p.Unit,
@@ -151,15 +149,28 @@ func UpdateProductHandler() fiber.Handler {
 	}
 }
 
-// DELETE /api/admin/products/:id
-func DeleteProductHandler() fiber.Handler {
+// DELETE /api/produce-products/:id
+func DeleteProduceProductHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		id := c.Params("id")
 
-		if err := database.DB.Delete(&models.Product{}, "id = ?", id).Error; err != nil {
+		var p models.Product
+		if err := database.DB.First(&p, "id = ? AND is_center_product = ?", id, false).Error; err != nil {
+			return fiber.NewError(fiber.StatusNotFound, "Ürün bulunamadı")
+		}
+
+		// Ürüne ait manav alımları var mı kontrol et
+		var count int64
+		database.DB.Model(&models.ProducePurchase{}).Where("product_id = ?", id).Count(&count)
+		if count > 0 {
+			return fiber.NewError(fiber.StatusBadRequest, "Bu ürüne ait manav alımları var, önce alımları silin")
+		}
+
+		if err := database.DB.Delete(&p).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Ürün silinemedi")
 		}
 
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 }
+

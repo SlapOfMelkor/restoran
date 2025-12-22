@@ -7,6 +7,7 @@ interface Product {
   id: number;
   name: string;
   unit: string;
+  stock_code?: string;
 }
 
 interface ProducePurchase {
@@ -84,9 +85,17 @@ interface MonthlyProduceUsageItem {
   total_amount: number;
 }
 
+interface ProduceCategory {
+  id: number;
+  name: string;
+  branch_id: number;
+  created_at: string;
+}
+
 export const ProducePage: React.FC = () => {
   const { user, selectedBranchId } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<ProduceCategory[]>([]);
   const [purchases, setPurchases] = useState<ProducePurchaseWithLog[]>([]);
   const [payments, setPayments] = useState<ProducePaymentWithLog[]>([]);
   const [balance, setBalance] = useState<ProduceBalance | null>(null);
@@ -94,6 +103,16 @@ export const ProducePage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showPurchaseForm, setShowPurchaseForm] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingCategory, setEditingCategory] = useState<ProduceCategory | null>(null);
+  const [productFormData, setProductFormData] = useState({
+    name: "",
+    unit: "",
+    stock_code: "",
+  });
+  const [categoryFormData, setCategoryFormData] = useState({ name: "" });
   const [purchaseFormData, setPurchaseFormData] = useState({
     product_id: "",
     quantity: "",
@@ -114,10 +133,23 @@ export const ProducePage: React.FC = () => {
 
   const fetchProducts = async () => {
     try {
-      const res = await apiClient.get("/products");
+      const res = await apiClient.get("/produce-products");
       setProducts(res.data);
     } catch (err) {
-      console.error("Ürünler yüklenemedi:", err);
+      console.error("Manav ürünleri yüklenemedi:", err);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const params: any = {};
+      if (user?.role === "super_admin" && selectedBranchId) {
+        params.branch_id = selectedBranchId;
+      }
+      const res = await apiClient.get("/produce-categories", { params });
+      setCategories(res.data);
+    } catch (err) {
+      console.error("Manav kategorileri yüklenemedi:", err);
     }
   };
 
@@ -243,6 +275,7 @@ export const ProducePage: React.FC = () => {
 
   useEffect(() => {
     fetchProducts();
+    fetchCategories();
     fetchPurchases();
     fetchPayments();
     fetchBalance();
@@ -387,6 +420,124 @@ export const ProducePage: React.FC = () => {
     return payment.created_by_user_id === user?.id;
   };
 
+  // Ürün yönetimi
+  const handleProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!productFormData.name.trim() || !productFormData.unit.trim()) {
+      alert("Lütfen ürün adı ve birim girin");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload: any = {
+        name: productFormData.name.trim(),
+        unit: productFormData.unit.trim(),
+      };
+      if (productFormData.stock_code.trim()) {
+        payload.stock_code = productFormData.stock_code.trim();
+      }
+
+      if (editingProduct) {
+        await apiClient.put(`/produce-products/${editingProduct.id}`, payload);
+        alert("Ürün başarıyla güncellendi");
+      } else {
+        await apiClient.post("/produce-products", payload);
+        alert("Ürün başarıyla oluşturuldu");
+      }
+
+      setProductFormData({ name: "", unit: "", stock_code: "" });
+      setEditingProduct(null);
+      setShowProductModal(false);
+      fetchProducts();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Ürün işlemi başarısız");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteProduct = async (id: number) => {
+    if (!confirm("Bu ürünü silmek istediğinize emin misiniz?")) {
+      return;
+    }
+
+    try {
+      await apiClient.delete(`/produce-products/${id}`);
+      alert("Ürün başarıyla silindi");
+      fetchProducts();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Ürün silinemedi");
+    }
+  };
+
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setProductFormData({
+      name: product.name,
+      unit: product.unit,
+      stock_code: product.stock_code || "",
+    });
+    setShowProductModal(true);
+  };
+
+  // Kategori yönetimi
+  const handleCategorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!categoryFormData.name.trim()) {
+      alert("Lütfen kategori adı girin");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload: any = {
+        name: categoryFormData.name.trim(),
+      };
+      
+      if (user?.role === "super_admin" && selectedBranchId) {
+        payload.branch_id = selectedBranchId;
+      }
+
+      if (editingCategory) {
+        await apiClient.put(`/produce-categories/${editingCategory.id}`, payload);
+        alert("Kategori başarıyla güncellendi");
+      } else {
+        await apiClient.post("/produce-categories", payload);
+        alert("Kategori başarıyla oluşturuldu");
+      }
+
+      setCategoryFormData({ name: "" });
+      setEditingCategory(null);
+      setShowCategoryModal(false);
+      fetchCategories();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Kategori işlemi başarısız");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteCategory = async (id: number) => {
+    if (!confirm("Bu kategoriyi silmek istediğinize emin misiniz?")) {
+      return;
+    }
+
+    try {
+      await apiClient.delete(`/produce-categories/${id}`);
+      alert("Kategori başarıyla silindi");
+      fetchCategories();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Kategori silinemedi");
+    }
+  };
+
+  const handleEditCategory = (category: ProduceCategory) => {
+    setEditingCategory(category);
+    setCategoryFormData({ name: category.name });
+    setShowCategoryModal(true);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -394,6 +545,26 @@ export const ProducePage: React.FC = () => {
           Manav alımları ve ödemeleri yönetimi
         </p>
         <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setEditingProduct(null);
+              setProductFormData({ name: "", unit: "", stock_code: "" });
+              setShowProductModal(true);
+            }}
+            className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
+          >
+            Ürün Yönetimi
+          </button>
+          <button
+            onClick={() => {
+              setEditingCategory(null);
+              setCategoryFormData({ name: "" });
+              setShowCategoryModal(true);
+            }}
+            className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
+          >
+            Kategori Yönetimi
+          </button>
           <button
             onClick={() => setShowPurchaseForm(true)}
             className="px-4 py-2 rounded-lg text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
@@ -884,6 +1055,190 @@ export const ProducePage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Ürün Yönetimi Modal */}
+      <Modal
+        isOpen={showProductModal}
+        onClose={() => {
+          setShowProductModal(false);
+          setEditingProduct(null);
+          setProductFormData({ name: "", unit: "", stock_code: "" });
+        }}
+        title={editingProduct ? "Ürün Düzenle" : "Yeni Ürün Ekle"}
+        maxWidth="md"
+      >
+        <form onSubmit={handleProductSubmit} className="space-y-3">
+          <div>
+            <label className="block text-xs text-[#555555] mb-1">Ürün Adı</label>
+            <input
+              type="text"
+              value={productFormData.name}
+              onChange={(e) => setProductFormData({ ...productFormData, name: e.target.value })}
+              className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+              placeholder="Örn: Domates, Salatalık"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-[#555555] mb-1">Birim</label>
+            <input
+              type="text"
+              value={productFormData.unit}
+              onChange={(e) => setProductFormData({ ...productFormData, unit: e.target.value })}
+              className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+              placeholder="Örn: kg, adet, koli"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-[#555555] mb-1">Stok Kodu (Opsiyonel)</label>
+            <input
+              type="text"
+              value={productFormData.stock_code}
+              onChange={(e) => setProductFormData({ ...productFormData, stock_code: e.target.value })}
+              className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+              placeholder="Örn: DOM001"
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
+            >
+              {submitting ? "Kaydediliyor..." : editingProduct ? "Güncelle" : "Ekle"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowProductModal(false);
+                setEditingProduct(null);
+                setProductFormData({ name: "", unit: "", stock_code: "" });
+              }}
+              className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+            >
+              İptal
+            </button>
+          </div>
+        </form>
+
+        {/* Ürün Listesi */}
+        <div className="mt-6 border-t border-[#E5E5E5] pt-4">
+          <h3 className="text-sm font-semibold mb-3">Mevcut Ürünler</h3>
+          {products.length === 0 ? (
+            <p className="text-xs text-[#555555]">Henüz ürün yok</p>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {products.map((product) => (
+                <div
+                  key={product.id}
+                  className="flex items-center justify-between p-2 bg-white rounded border border-[#E5E5E5]"
+                >
+                  <div>
+                    <div className="text-sm font-medium">{product.name}</div>
+                    <div className="text-xs text-[#555555]">
+                      {product.unit} {product.stock_code && `• ${product.stock_code}`}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEditProduct(product)}
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs transition-colors text-white"
+                    >
+                      Düzenle
+                    </button>
+                    <button
+                      onClick={() => handleDeleteProduct(product.id)}
+                      className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors text-white"
+                    >
+                      Sil
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Kategori Yönetimi Modal */}
+      <Modal
+        isOpen={showCategoryModal}
+        onClose={() => {
+          setShowCategoryModal(false);
+          setEditingCategory(null);
+          setCategoryFormData({ name: "" });
+        }}
+        title={editingCategory ? "Kategori Düzenle" : "Yeni Kategori Ekle"}
+        maxWidth="md"
+      >
+        <form onSubmit={handleCategorySubmit} className="space-y-3">
+          <div>
+            <label className="block text-xs text-[#555555] mb-1">Kategori Adı</label>
+            <input
+              type="text"
+              value={categoryFormData.name}
+              onChange={(e) => setCategoryFormData({ name: e.target.value })}
+              className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+              placeholder="Örn: Sebze, Meyve"
+              required
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
+            >
+              {submitting ? "Kaydediliyor..." : editingCategory ? "Güncelle" : "Ekle"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowCategoryModal(false);
+                setEditingCategory(null);
+                setCategoryFormData({ name: "" });
+              }}
+              className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+            >
+              İptal
+            </button>
+          </div>
+        </form>
+
+        {/* Kategori Listesi */}
+        <div className="mt-6 border-t border-[#E5E5E5] pt-4">
+          <h3 className="text-sm font-semibold mb-3">Mevcut Kategoriler</h3>
+          {categories.length === 0 ? (
+            <p className="text-xs text-[#555555]">Henüz kategori yok</p>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {categories.map((category) => (
+                <div
+                  key={category.id}
+                  className="flex items-center justify-between p-2 bg-white rounded border border-[#E5E5E5]"
+                >
+                  <div className="text-sm font-medium">{category.name}</div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleEditCategory(category)}
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs transition-colors text-white"
+                    >
+                      Düzenle
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCategory(category.id)}
+                      className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors text-white"
+                    >
+                      Sil
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 };
