@@ -58,6 +58,8 @@ export const ExpensesPage: React.FC = () => {
     description: "",
   });
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [categoryModalView, setCategoryModalView] = useState<"overview" | "add-expense" | "add-payment" | "details">("overview");
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentFormData, setPaymentFormData] = useState({
     category_id: "",
@@ -199,7 +201,7 @@ export const ExpensesPage: React.FC = () => {
         amount: "",
         description: "",
       });
-      setShowExpenseForm(false);
+      setCategoryModalView("overview");
       fetchExpenses();
       fetchCategoryBalances();
     } catch (err: any) {
@@ -243,7 +245,7 @@ export const ExpensesPage: React.FC = () => {
         amount: "",
         description: "",
       });
-      setShowPaymentForm(false);
+      setCategoryModalView("overview");
       fetchExpensePayments();
       fetchCategoryBalances();
     } catch (err: any) {
@@ -261,25 +263,6 @@ export const ExpensesPage: React.FC = () => {
     return expensePayments.filter((pay) => pay.category_id === categoryId);
   };
 
-  const openExpenseFormForCategory = (categoryId: number) => {
-    setExpenseFormData({
-      category_id: categoryId.toString(),
-      date: new Date().toISOString().split("T")[0],
-      amount: "",
-      description: "",
-    });
-    setShowExpenseForm(true);
-  };
-
-  const openPaymentFormForCategory = (categoryId: number) => {
-    setPaymentFormData({
-      category_id: categoryId.toString(),
-      date: new Date().toISOString().split("T")[0],
-      amount: "",
-      description: "",
-    });
-    setShowPaymentForm(true);
-  };
 
   return (
     <div className="space-y-4">
@@ -347,46 +330,81 @@ export const ExpensesPage: React.FC = () => {
         </Modal>
       )}
 
-      {/* Kategori Kutucukları */}
+      {/* Kategori Butonları */}
       {loading ? (
         <p className="text-xs text-[#222222]">Yükleniyor...</p>
       ) : categoryBalances.length === 0 ? (
         <p className="text-xs text-[#222222]">Henüz kategori yok</p>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {categoryBalances.map((balance) => {
-            const categoryExpenses = getCategoryExpenses(balance.category_id);
-            const categoryPayments = getCategoryPayments(balance.category_id);
-            const isSelected = selectedCategoryId === balance.category_id;
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {categoryBalances.map((balance) => (
+            <button
+              key={balance.category_id}
+              onClick={() => {
+                setSelectedCategoryId(balance.category_id);
+                setCategoryModalView("overview");
+                setShowCategoryModal(true);
+              }}
+              className="bg-white rounded-xl border-2 border-[#E5E5E5] hover:border-[#8F1A9F] p-6 shadow-sm transition-all hover:shadow-md text-left"
+            >
+              <h3 className="text-base font-bold text-[#8F1A9F] mb-2">
+                {balance.category_name}
+              </h3>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-[#555555]">Kalan Borç:</span>
+                  <span
+                    className={`font-bold ${
+                      balance.remaining_debt >= 0 ? "text-red-600" : "text-green-600"
+                    }`}
+                  >
+                    {balance.remaining_debt.toFixed(2)} TL
+                  </span>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
 
-            return (
-              <div
-                key={balance.category_id}
-                className={`bg-white rounded-xl border-2 ${
-                  isSelected ? "border-[#8F1A9F]" : "border-[#E5E5E5]"
-                } p-4 shadow-sm`}
-              >
-                {/* Kategori Başlığı */}
-                <div className="mb-3">
-                  <h3 className="text-sm font-bold text-[#8F1A9F] mb-2">
-                    {balance.category_name}
-                  </h3>
-
-                  {/* Borç Özeti */}
-                  <div className="space-y-1 mb-3">
-                    <div className="flex justify-between text-xs">
+      {/* Kategori Detay Modal */}
+      {selectedCategoryId && (
+        <Modal
+          isOpen={showCategoryModal}
+          onClose={() => {
+            setShowCategoryModal(false);
+            setCategoryModalView("overview");
+            setSelectedCategoryId(null);
+          }}
+          title={
+            categoryBalances.find((b) => b.category_id === selectedCategoryId)
+              ?.category_name || "Kategori Detayları"
+          }
+          maxWidth="lg"
+        >
+          {categoryModalView === "overview" && (
+            <div className="space-y-4">
+              {/* Borç Özeti */}
+              {(() => {
+                const balance = categoryBalances.find(
+                  (b) => b.category_id === selectedCategoryId
+                );
+                if (!balance) return null;
+                return (
+                  <div className="bg-[#F4F4F4] rounded-xl p-4 space-y-2">
+                    <div className="flex justify-between text-sm">
                       <span className="text-[#555555]">Toplam Gider:</span>
                       <span className="font-semibold text-red-600">
                         {balance.total_expenses.toFixed(2)} TL
                       </span>
                     </div>
-                    <div className="flex justify-between text-xs">
+                    <div className="flex justify-between text-sm">
                       <span className="text-[#555555]">Yapılan Ödeme:</span>
                       <span className="font-semibold text-green-600">
                         {balance.total_payments.toFixed(2)} TL
                       </span>
                     </div>
-                    <div className="flex justify-between text-xs border-t pt-1">
+                    <div className="flex justify-between text-sm border-t pt-2 mt-2">
                       <span className="text-[#555555] font-semibold">Kalan Borç:</span>
                       <span
                         className={`font-bold ${
@@ -397,230 +415,69 @@ export const ExpensesPage: React.FC = () => {
                       </span>
                     </div>
                   </div>
+                );
+              })()}
 
-                  {/* Gider Listesi (Özet) */}
-                  {categoryExpenses.length > 0 && (
-                    <div className="mb-3 max-h-32 overflow-y-auto">
-                      <div className="text-xs font-semibold text-[#555555] mb-1">
-                        Giderler:
-                      </div>
-                      <div className="space-y-1">
-                        {categoryExpenses.slice(0, 3).map((exp) => (
-                          <div
-                            key={exp.id}
-                            className="text-xs text-[#222222] flex justify-between"
-                          >
-                            <span>{exp.date}</span>
-                            <span className="font-medium">
-                              {exp.amount.toFixed(2)} TL
-                            </span>
-                          </div>
-                        ))}
-                        {categoryExpenses.length > 3 && (
-                          <div className="text-xs text-[#555555] italic">
-                            +{categoryExpenses.length - 3} daha...
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Ödeme Listesi (Özet) */}
-                  {categoryPayments.length > 0 && (
-                    <div className="mb-3 max-h-32 overflow-y-auto">
-                      <div className="text-xs font-semibold text-[#555555] mb-1">
-                        Ödemeler:
-                      </div>
-                      <div className="space-y-1">
-                        {categoryPayments.slice(0, 3).map((pay) => (
-                          <div
-                            key={pay.id}
-                            className="text-xs text-green-600 flex justify-between"
-                          >
-                            <span>{pay.date}</span>
-                            <span className="font-medium">
-                              {pay.amount.toFixed(2)} TL
-                            </span>
-                          </div>
-                        ))}
-                        {categoryPayments.length > 3 && (
-                          <div className="text-xs text-[#555555] italic">
-                            +{categoryPayments.length - 3} daha...
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Butonlar */}
-                  <div className="flex flex-col gap-2 mt-3">
-                    <button
-                      onClick={() => openExpenseFormForCategory(balance.category_id)}
-                      className="px-3 py-1.5 rounded text-xs transition-colors bg-red-500 hover:bg-red-600 text-white"
-                    >
-                      Borç Ekle
-                    </button>
-                    <button
-                      onClick={() => openPaymentFormForCategory(balance.category_id)}
-                      className="px-3 py-1.5 rounded text-xs transition-colors bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      Ödeme Yap
-                    </button>
-                    <button
-                      onClick={() =>
-                        setSelectedCategoryId(
-                          isSelected ? null : balance.category_id
-                        )
-                      }
-                      className="px-3 py-1.5 rounded text-xs transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
-                    >
-                      {isSelected ? "Detayları Gizle" : "Detayları Göster"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Seçili Kategori Detayları */}
-      {selectedCategoryId && (
-        <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">
-            {
-              categoryBalances.find((b) => b.category_id === selectedCategoryId)
-                ?.category_name
-            }{" "}
-            Detayları
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Giderler */}
-            <div>
-              <h3 className="text-xs font-semibold mb-2 text-red-600">Giderler</h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {getCategoryExpenses(selectedCategoryId).length === 0 ? (
-                  <p className="text-xs text-[#555555]">Henüz gider yok</p>
-                ) : (
-                  getCategoryExpenses(selectedCategoryId).map((exp) => (
-                    <div
-                      key={exp.id}
-                      className="p-2 bg-white rounded border border-[#E5E5E5]"
-                    >
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <div className="text-xs font-medium">{exp.date}</div>
-                          {exp.description && (
-                            <div className="text-xs text-[#555555]">
-                              {exp.description}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-xs font-bold text-red-600">
-                          {exp.amount.toFixed(2)} TL
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Ödemeler */}
-            <div>
-              <h3 className="text-xs font-semibold mb-2 text-green-600">Ödemeler</h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {getCategoryPayments(selectedCategoryId).length === 0 ? (
-                  <p className="text-xs text-[#555555]">Henüz ödeme yok</p>
-                ) : (
-                  getCategoryPayments(selectedCategoryId).map((pay) => (
-                    <div
-                      key={pay.id}
-                      className="p-2 bg-white rounded border border-[#E5E5E5]"
-                    >
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <div className="text-xs font-medium">{pay.date}</div>
-                          {pay.description && (
-                            <div className="text-xs text-[#555555]">
-                              {pay.description}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-xs font-bold text-green-600">
-                          {pay.amount.toFixed(2)} TL
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Gider Ekleme Formu */}
-      <Modal
-        isOpen={showExpenseForm}
-        onClose={() => {
-          setShowExpenseForm(false);
-          setExpenseFormData({
-            category_id: "",
-            date: new Date().toISOString().split("T")[0],
-            amount: "",
-            description: "",
-          });
-        }}
-        title="Borç Ekle (Gider)"
-        maxWidth="md"
-      >
-        <form onSubmit={handleExpenseSubmit} className="space-y-3">
-            <div>
-              <label className="block text-xs text-[#555555] mb-1">
-                Kategori
-              </label>
-              <select
-                value={expenseFormData.category_id}
-                onChange={(e) =>
-                  setExpenseFormData({
-                    ...expenseFormData,
-                    category_id: e.target.value,
-                  })
-                }
-                className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                required
-              >
-                <option value="">Kategori seçin...</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-[#555555] mb-1">
-                  Tarih
-                </label>
-                <input
-                  type="date"
-                  value={expenseFormData.date}
-                  onChange={(e) =>
+              {/* Aksiyon Butonları */}
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                  onClick={() => {
+                    setCategoryModalView("add-expense");
                     setExpenseFormData({
-                      ...expenseFormData,
-                      date: e.target.value,
-                    })
-                  }
-                  className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                  required
-                />
+                      category_id: selectedCategoryId!.toString(),
+                      date: new Date().toISOString().split("T")[0],
+                      amount: "",
+                      description: "",
+                    });
+                  }}
+                  className="px-4 py-3 rounded-lg text-sm transition-colors bg-red-500 hover:bg-red-600 text-white font-medium"
+                >
+                  Borç Ekle
+                </button>
+                <button
+                  onClick={() => {
+                    setCategoryModalView("add-payment");
+                    setPaymentFormData({
+                      category_id: selectedCategoryId!.toString(),
+                      date: new Date().toISOString().split("T")[0],
+                      amount: "",
+                      description: "",
+                    });
+                  }}
+                  className="px-4 py-3 rounded-lg text-sm transition-colors bg-green-600 hover:bg-green-700 text-white font-medium"
+                >
+                  Ödeme Yap
+                </button>
+                <button
+                  onClick={() => setCategoryModalView("details")}
+                  className="px-4 py-3 rounded-lg text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white font-medium"
+                >
+                  Detayları Göster
+                </button>
               </div>
-              <div>
-                <label className="block text-xs text-[#555555] mb-1">
-                  Tutar (TL)
-                </label>
+            </div>
+          )}
+
+          {categoryModalView === "add-expense" && (
+            <form onSubmit={handleExpenseSubmit} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-[#555555] mb-1">Tarih</label>
+                  <input
+                    type="date"
+                    value={expenseFormData.date}
+                    onChange={(e) =>
+                      setExpenseFormData({
+                        ...expenseFormData,
+                        date: e.target.value,
+                      })
+                    }
+                    className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#555555] mb-1">Tutar (TL)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -636,113 +493,64 @@ export const ExpensesPage: React.FC = () => {
                     placeholder="0.00"
                     required
                   />
+                </div>
               </div>
-            </div>
-            <div>
-              <label className="block text-xs text-[#555555] mb-1">
-                Açıklama (Opsiyonel)
-              </label>
-              <input
-                type="text"
-                value={expenseFormData.description}
-                onChange={(e) =>
-                  setExpenseFormData({
-                    ...expenseFormData,
-                    description: e.target.value,
-                  })
-                }
-                className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                placeholder="Açıklama..."
-              />
-            </div>
-          <div className="flex gap-2 pt-2">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
-            >
-              {submitting ? "Ekleniyor..." : "Ekle"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowExpenseForm(false);
-                setExpenseFormData({
-                  category_id: "",
-                  date: new Date().toISOString().split("T")[0],
-                  amount: "",
-                  description: "",
-                });
-              }}
-              className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
-            >
-              İptal
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Ödeme Formu */}
-      <Modal
-        isOpen={showPaymentForm}
-        onClose={() => {
-          setShowPaymentForm(false);
-          setPaymentFormData({
-            category_id: "",
-            date: new Date().toISOString().split("T")[0],
-            amount: "",
-            description: "",
-          });
-        }}
-        title="Ödeme Yap"
-        maxWidth="md"
-      >
-        <form onSubmit={handlePaymentSubmit} className="space-y-3">
-            <div>
-              <label className="block text-xs text-[#555555] mb-1">
-                Kategori
-              </label>
-              <select
-                value={paymentFormData.category_id}
-                onChange={(e) =>
-                  setPaymentFormData({
-                    ...paymentFormData,
-                    category_id: e.target.value,
-                  })
-                }
-                className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                required
-              >
-                <option value="">Kategori seçin...</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-[#555555] mb-1">
-                  Tarih
+                  Açıklama (Opsiyonel)
                 </label>
                 <input
-                  type="date"
-                  value={paymentFormData.date}
+                  type="text"
+                  value={expenseFormData.description}
                   onChange={(e) =>
-                    setPaymentFormData({
-                      ...paymentFormData,
-                      date: e.target.value,
+                    setExpenseFormData({
+                      ...expenseFormData,
+                      description: e.target.value,
                     })
                   }
                   className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                  required
+                  placeholder="Açıklama..."
                 />
               </div>
-              <div>
-                <label className="block text-xs text-[#555555] mb-1">
-                  Tutar (TL)
-                </label>
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
+                >
+                  {submitting ? "Ekleniyor..." : "Ekle"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCategoryModalView("overview")}
+                  className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+                >
+                  Geri
+                </button>
+              </div>
+            </form>
+          )}
+
+          {categoryModalView === "add-payment" && (
+            <form onSubmit={handlePaymentSubmit} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-[#555555] mb-1">Tarih</label>
+                  <input
+                    type="date"
+                    value={paymentFormData.date}
+                    onChange={(e) =>
+                      setPaymentFormData({
+                        ...paymentFormData,
+                        date: e.target.value,
+                      })
+                    }
+                    className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#555555] mb-1">Tutar (TL)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -758,51 +566,120 @@ export const ExpensesPage: React.FC = () => {
                     placeholder="0.00"
                     required
                   />
+                </div>
               </div>
+              <div>
+                <label className="block text-xs text-[#555555] mb-1">
+                  Açıklama (Opsiyonel)
+                </label>
+                <input
+                  type="text"
+                  value={paymentFormData.description}
+                  onChange={(e) =>
+                    setPaymentFormData({
+                      ...paymentFormData,
+                      description: e.target.value,
+                    })
+                  }
+                  className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                  placeholder="Açıklama..."
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white"
+                >
+                  {submitting ? "Ekleniyor..." : "Ödeme Yap"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCategoryModalView("overview")}
+                  className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+                >
+                  Geri
+                </button>
+              </div>
+            </form>
+          )}
+
+          {categoryModalView === "details" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Giderler */}
+                <div>
+                  <h3 className="text-sm font-semibold mb-2 text-red-600">Giderler</h3>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {getCategoryExpenses(selectedCategoryId).length === 0 ? (
+                      <p className="text-xs text-[#555555]">Henüz gider yok</p>
+                    ) : (
+                      getCategoryExpenses(selectedCategoryId).map((exp) => (
+                        <div
+                          key={exp.id}
+                          className="p-2 bg-white rounded border border-[#E5E5E5]"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <div className="text-xs font-medium">{exp.date}</div>
+                              {exp.description && (
+                                <div className="text-xs text-[#555555]">
+                                  {exp.description}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-xs font-bold text-red-600">
+                              {exp.amount.toFixed(2)} TL
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Ödemeler */}
+                <div>
+                  <h3 className="text-sm font-semibold mb-2 text-green-600">Ödemeler</h3>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {getCategoryPayments(selectedCategoryId).length === 0 ? (
+                      <p className="text-xs text-[#555555]">Henüz ödeme yok</p>
+                    ) : (
+                      getCategoryPayments(selectedCategoryId).map((pay) => (
+                        <div
+                          key={pay.id}
+                          className="p-2 bg-white rounded border border-[#E5E5E5]"
+                        >
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <div className="text-xs font-medium">{pay.date}</div>
+                              {pay.description && (
+                                <div className="text-xs text-[#555555]">
+                                  {pay.description}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-xs font-bold text-green-600">
+                              {pay.amount.toFixed(2)} TL
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setCategoryModalView("overview")}
+                className="w-full px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+              >
+                Geri
+              </button>
             </div>
-            <div>
-              <label className="block text-xs text-[#555555] mb-1">
-                Açıklama (Opsiyonel)
-              </label>
-              <input
-                type="text"
-                value={paymentFormData.description}
-                onChange={(e) =>
-                  setPaymentFormData({
-                    ...paymentFormData,
-                    description: e.target.value,
-                  })
-                }
-                className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                placeholder="Açıklama..."
-              />
-            </div>
-          <div className="flex gap-2 pt-2">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white"
-            >
-              {submitting ? "Ekleniyor..." : "Ödeme Yap"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowPaymentForm(false);
-                setPaymentFormData({
-                  category_id: "",
-                  date: new Date().toISOString().split("T")[0],
-                  amount: "",
-                  description: "",
-                });
-              }}
-              className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
-            >
-              İptal
-            </button>
-          </div>
-        </form>
-      </Modal>
+          )}
+        </Modal>
+      )}
+
     </div>
   );
 };
