@@ -41,11 +41,11 @@ func ParseB2BOrderURL(url string) (*ParsePDFResponse, error) {
 		return nil, fmt.Errorf("HTML okunamadı: %v", err)
 	}
 	
-	html := string(htmlBytes)
+	htmlContent := string(htmlBytes)
 	
 	// Sipariş numarasını çıkar: "No:CB22901AC48C501"
 	orderNumberRe := regexp.MustCompile(`No:\s*([A-Z0-9]+)`)
-	orderNumberMatch := orderNumberRe.FindStringSubmatch(html)
+	orderNumberMatch := orderNumberRe.FindStringSubmatch(htmlContent)
 	orderNumber := ""
 	if len(orderNumberMatch) > 1 {
 		orderNumber = orderNumberMatch[1]
@@ -53,7 +53,7 @@ func ParseB2BOrderURL(url string) (*ParsePDFResponse, error) {
 	
 	// Tarihi çıkar: "Sipariş Tarihi: 18.04.2025 14:25:06"
 	dateRe := regexp.MustCompile(`Sipariş Tarihi:\s*(\d{2})\.(\d{2})\.(\d{4})`)
-	dateMatch := dateRe.FindStringSubmatch(html)
+	dateMatch := dateRe.FindStringSubmatch(htmlContent)
 	dateStr := ""
 	if len(dateMatch) > 3 {
 		// "18.04.2025" formatından "2025-04-18" formatına çevir
@@ -63,7 +63,7 @@ func ParseB2BOrderURL(url string) (*ParsePDFResponse, error) {
 	// Tablo içeriğini bul
 	// Tablo formatı: <table> içinde <tr> satırları
 	tableRe := regexp.MustCompile(`<table[^>]*>([\s\S]*?)</table>`)
-	tableMatches := tableRe.FindAllStringSubmatch(html, -1)
+	tableMatches := tableRe.FindAllStringSubmatch(htmlContent, -1)
 	
 	var products []ParsedProduct
 	
