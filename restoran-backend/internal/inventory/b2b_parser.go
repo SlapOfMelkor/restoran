@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"regexp"
@@ -108,32 +109,28 @@ func ParseB2BOrderURL(url string) (*ParsePDFResponse, error) {
 			cells := cellRe.FindAllStringSubmatch(rowContent, -1)
 			
 			if len(cells) < 7 {
-				continue // Yeterli kolon yok
+				continue // Yeterli kolon yok (en az 7 kolon gerekli)
 			}
 			
-			// HTML etiketlerini temizle
+			// HTML etiketlerini temizle ve entity'leri decode et
 			cleanHTML := func(s string) string {
+				// Önce HTML entity'leri decode et (Türkçe karakterler için önemli)
+				s = html.UnescapeString(s)
 				// HTML etiketlerini kaldır
 				htmlTagRe := regexp.MustCompile(`<[^>]+>`)
 				s = htmlTagRe.ReplaceAllString(s, "")
-				// HTML entity'leri decode et
-				s = strings.ReplaceAll(s, "&nbsp;", " ")
-				s = strings.ReplaceAll(s, "&amp;", "&")
-				s = strings.ReplaceAll(s, "&lt;", "<")
-				s = strings.ReplaceAll(s, "&gt;", ">")
-				s = strings.ReplaceAll(s, "&quot;", "\"")
-				s = strings.ReplaceAll(s, "&#39;", "'")
 				// Fazla boşlukları temizle
 				s = strings.TrimSpace(s)
 				s = regexp.MustCompile(`\s+`).ReplaceAllString(s, " ")
 				return s
 			}
 			
+			// Tablo kolonları: 0=Stok Kodu, 1=Ürün, 2=Birim Fiyat, 3=Miktar, 4=KDV Oranı, 5=KDV Tutarı, 6=Toplam Tutar
 			stockCode := cleanHTML(cells[0][1])
 			productName := cleanHTML(cells[1][1])
-			unitPriceStr := cleanHTML(cells[2][1])
-			quantityStr := cleanHTML(cells[3][1])
-			totalAmountStr := cleanHTML(cells[5][1]) // Toplam Tutar kolonu
+			unitPriceStr := cleanHTML(cells[2][1])      // Birim Fiyat
+			quantityStr := cleanHTML(cells[3][1])       // Miktar
+			totalAmountStr := cleanHTML(cells[6][1])    // Toplam Tutar (6. kolon, önceki kodda 5 yazmıştık)
 			
 			// Boş satırları atla
 			if stockCode == "" && productName == "" {
