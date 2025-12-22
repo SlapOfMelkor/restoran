@@ -378,13 +378,15 @@ export const ShipmentsPage: React.FC = () => {
 
     // Tüm ürünleri (eşleşen ve eşleşmeyen) items'a çevir
     // Eşleşmeyen ürünler için product_id = 0 gönder, backend otomatik oluşturacak
+    // B2B'den gelen total_amount'u kullan (KDV dahil toplam tutar)
     const itemsToSend = parsedProducts.map((p: any) => ({
       product_id: p.matched_product_id || 0, // Eşleşme yoksa 0 (otomatik oluşturulacak)
       product_name: p.product_name,
       stock_code: p.stock_code || "",
       unit: p.quantity_unit || "Adet",
       quantity: p.quantity,
-      unit_price: p.unit_price,
+      unit_price: p.unit_price, // Birim fiyat (gösterim için)
+      total_price: p.total_amount, // B2B'den gelen KDV dahil toplam tutar - backend bunu kullanacak
     }));
 
     setSubmitting(true);

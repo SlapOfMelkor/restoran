@@ -22,7 +22,8 @@ type CreateShipmentRequest struct {
 type ShipmentItemRequest struct {
 	ProductID   uint    `json:"product_id"`   // 0 ise otomatik oluşturulacak
 	Quantity    float64 `json:"quantity"`
-	UnitPrice   float64 `json:"unit_price"`
+	UnitPrice   float64 `json:"unit_price"`   // Birim fiyat (opsiyonel, total_price varsa kullanılmayabilir)
+	TotalPrice  float64 `json:"total_price"`  // Toplam tutar (KDV dahil) - eğer varsa bu kullanılır
 	// Otomatik ürün oluşturma için (product_id = 0 olduğunda)
 	ProductName string `json:"product_name"`  // Ürün adı
 	StockCode   string `json:"stock_code"`    // Stok kodu
@@ -126,7 +127,13 @@ func CreateShipmentHandler() fiber.Handler {
 				}
 			}
 
-			totalPrice := itemReq.Quantity * itemReq.UnitPrice
+			// Toplam tutarı belirle: Eğer total_price gönderildiyse onu kullan, yoksa quantity * unit_price hesapla
+			var totalPrice float64
+			if itemReq.TotalPrice > 0 {
+				totalPrice = itemReq.TotalPrice // B2B'den gelen KDV dahil toplam tutar
+			} else {
+				totalPrice = itemReq.Quantity * itemReq.UnitPrice // Manuel girilen ürünler için
+			}
 			totalAmount += totalPrice
 
 			// Yeni oluşturulan ürün için product.ID kullan, aksi halde itemReq.ProductID kullan
@@ -135,10 +142,16 @@ func CreateShipmentHandler() fiber.Handler {
 				productID = product.ID // Yeni oluşturulan ürünün ID'sini kullan
 			}
 
+			// Unit price'ı güncelle: Eğer total_price kullanıldıysa, unit_price'i hesapla (gösterim için)
+			unitPrice := itemReq.UnitPrice
+			if itemReq.TotalPrice > 0 && itemReq.Quantity > 0 {
+				unitPrice = itemReq.TotalPrice / itemReq.Quantity // KDV dahil birim fiyat
+			}
+
 			shipmentItems = append(shipmentItems, models.ShipmentItem{
 				ProductID:  productID,
 				Quantity:   itemReq.Quantity,
-				UnitPrice:  itemReq.UnitPrice,
+				UnitPrice:  unitPrice,
 				TotalPrice: totalPrice,
 			})
 		}
