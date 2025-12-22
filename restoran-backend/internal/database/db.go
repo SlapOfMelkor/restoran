@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"log"
 
 	"restoran-backend/internal/config"
@@ -83,6 +84,18 @@ func Init(cfg *config.Config) {
 		}
 	}
 
+	// ProducePurchase foreign key migration: product_id'yi products'tan produce_products'a yönlendir
+	// Eski constraint'i kaldır (AutoMigrate'ten önce)
+	if DB.Migrator().HasTable(&models.ProducePurchase{}) {
+		log.Println("ProducePurchase foreign key constraint migration kontrol ediliyor...")
+		// Eski foreign key constraint'ini kaldır (products tablosunu referans eden)
+		if dropErr := DB.Exec("ALTER TABLE produce_purchases DROP CONSTRAINT IF EXISTS fk_produce_purchases_product CASCADE").Error; dropErr != nil {
+			log.Printf("Eski constraint kaldırılırken hata (devam ediliyor): %v", dropErr)
+		} else {
+			log.Println("Eski ProducePurchase foreign key constraint kaldırıldı (varsa)")
+		}
+	}
+
 	err = DB.AutoMigrate(
 		&models.Branch{},
 		&models.User{},
@@ -109,6 +122,35 @@ func Init(cfg *config.Config) {
 	)
 	if err != nil {
 		log.Fatalf("AutoMigrate hatası: %v", err)
+	}
+
+	// ProducePurchase foreign key constraint'ini manuel olarak düzelt (AutoMigrate bazen constraint'i eklemez)
+	if DB.Migrator().HasTable(&models.ProducePurchase{}) && DB.Migrator().HasTable(&models.ProduceProduct{}) {
+		// Yeni constraint'in var olup olmadığını kontrol et
+		var constraintExists bool
+		DB.Raw(`
+			SELECT EXISTS (
+				SELECT 1 
+				FROM information_schema.table_constraints 
+				WHERE table_name = 'produce_purchases' 
+				AND constraint_name = 'fk_produce_purchases_produce_product'
+			)
+		`).Scan(&constraintExists)
+
+		if !constraintExists {
+			log.Println("ProducePurchase için yeni foreign key constraint ekleniyor (produce_products)...")
+			if fkErr := DB.Exec(`
+				ALTER TABLE produce_purchases 
+				ADD CONSTRAINT fk_produce_purchases_produce_product 
+				FOREIGN KEY (product_id) REFERENCES produce_products(id) ON DELETE RESTRICT
+			`).Error; fkErr != nil {
+				log.Printf("Foreign key constraint eklenirken hata: %v", fkErr)
+			} else {
+				log.Println("ProducePurchase foreign key constraint başarıyla eklendi")
+			}
+		} else {
+			log.Println("ProducePurchase foreign key constraint zaten mevcut")
+		}
 	}
 
 	log.Println("Veritabanı bağlantısı başarılı. Migration tamamlandı.")
