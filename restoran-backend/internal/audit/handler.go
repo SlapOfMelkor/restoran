@@ -146,9 +146,21 @@ func UndoAuditLogHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusNotFound, "Log bulunamadı")
 		}
 
-		// Yetki kontrolü: Sadece işlemi yapan admin veya super admin geri alabilir
-		if role != models.RoleSuperAdmin && log.UserID != userID {
-			return fiber.NewError(fiber.StatusForbidden, "Bu işlemi sadece işlemi yapan admin veya super admin geri alabilir")
+		// Yetki kontrolü
+		if role == models.RoleSuperAdmin {
+			// Super admin her şeyi geri alabilir
+		} else if role == models.RoleBranchAdmin {
+			// Branch admin kendi şubesindeki tüm kayıtları geri alabilir
+			bVal := c.Locals(auth.CtxBranchIDKey)
+			bPtr, ok := bVal.(*uint)
+			if !ok || bPtr == nil {
+				return fiber.NewError(fiber.StatusForbidden, "Şube bilgisi bulunamadı")
+			}
+			if log.BranchID == nil || *log.BranchID != *bPtr {
+				return fiber.NewError(fiber.StatusForbidden, "Bu işlemi sadece kendi şubenizdeki kayıtları geri alabilirsiniz")
+			}
+		} else {
+			return fiber.NewError(fiber.StatusForbidden, "Bu işlemi geri almak için yetkiniz yok")
 		}
 
 		// Kullanıcı adını al

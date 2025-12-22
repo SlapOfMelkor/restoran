@@ -196,8 +196,11 @@ export const CenterShipmentsPage: React.FC = () => {
     if (user?.role === "super_admin") {
       return true;
     }
-    // Branch admin sadece kendi işlemlerini geri alabilir
-    return shipment.created_by_user_id === user?.id;
+    // Branch admin kendi şubesindeki tüm kayıtları geri alabilir
+    if (user?.role === "branch_admin" && user.branch_id) {
+      return shipment.branch_id === user.branch_id;
+    }
+    return false;
   };
 
 

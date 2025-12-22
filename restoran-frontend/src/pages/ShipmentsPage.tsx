@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
+import { Modal } from "../components/Modal";
 
 interface Product {
   id: number;
@@ -65,6 +66,7 @@ export const ShipmentsPage: React.FC = () => {
   });
   const [shipmentItems, setShipmentItems] = useState<ShipmentItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedShipmentForDetails, setSelectedShipmentForDetails] = useState<Shipment | null>(null);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [b2bUrl, setB2bUrl] = useState("");
   const [parsedProducts, setParsedProducts] = useState<any[]>([]);
@@ -328,7 +330,11 @@ export const ShipmentsPage: React.FC = () => {
     if (user?.role === "super_admin") {
       return true;
     }
-    return shipment.created_by_user_id === user?.id;
+    // Branch admin kendi şubesindeki tüm kayıtları geri alabilir
+    if (user?.role === "branch_admin" && user.branch_id) {
+      return shipment.branch_id === user.branch_id;
+    }
+    return false;
   };
 
   const totalAmount = shipmentItems.reduce((sum, item) => sum + item.total_price, 0);
@@ -745,6 +751,12 @@ export const ShipmentsPage: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSelectedShipmentForDetails(shipment)}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-xs transition-colors whitespace-nowrap text-white"
+                    >
+                      Detay Göster
+                    </button>
                     {!shipment.is_stocked && !shipment.is_undone && (
                       <button
                         onClick={() => handleStockShipment(shipment.id)}
@@ -763,27 +775,104 @@ export const ShipmentsPage: React.FC = () => {
                     )}
                   </div>
                 </div>
-                {/* Ürün detayları */}
-                <div className="mt-2 pt-2 border-t border-slate-700">
-                  <div className="text-xs text-[#222222] space-y-1">
-                    {shipment.items.map((item, idx) => {
-                      const vatAmount = item.total_price - (item.unit_price * item.quantity);
-                      return (
-                        <div key={idx} className="flex justify-between">
-                          <span>{item.product_name}</span>
-                          <span className="text-xs">
-                            {(item.unit_price_with_vat || item.unit_price || 0).toFixed(2)} TL × {item.quantity} = {item.total_price.toFixed(2)} TL ({vatAmount.toFixed(2)} TL KDV)
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Sevkiyat Detay Modal */}
+      <Modal
+        isOpen={!!selectedShipmentForDetails}
+        onClose={() => setSelectedShipmentForDetails(null)}
+        title={`Sevkiyat Detayları - ${selectedShipmentForDetails?.date || ""}`}
+        maxWidth="lg"
+      >
+        {selectedShipmentForDetails && (
+          <div className="space-y-4">
+            {/* Genel Bilgiler */}
+            <div className="bg-[#F4F4F4] rounded-lg p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold">Tarih:</span>
+                <span className="text-sm">{selectedShipmentForDetails.date}</span>
+              </div>
+              {selectedShipmentForDetails.created_by_user_name && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold">Oluşturan:</span>
+                  <span className="text-sm">👤 {selectedShipmentForDetails.created_by_user_name}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold">Toplam Tutar:</span>
+                <span className="text-sm font-bold text-[#8F1A9F]">
+                  {selectedShipmentForDetails.total_amount.toFixed(2)} TL
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold">Ürün Sayısı:</span>
+                <span className="text-sm">{selectedShipmentForDetails.items.length} adet</span>
+              </div>
+              {selectedShipmentForDetails.note && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold">Not:</span>
+                  <span className="text-sm">{selectedShipmentForDetails.note}</span>
+                </div>
+              )}
+              {selectedShipmentForDetails.is_stocked && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold">Durum:</span>
+                  <span className="text-sm text-green-600">✓ Stoka Kaydedildi</span>
+                </div>
+              )}
+              {selectedShipmentForDetails.is_undone && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold">Durum:</span>
+                  <span className="text-sm text-yellow-600">(Geri Alındı)</span>
+                </div>
+              )}
+            </div>
+
+            {/* Ürün Detayları */}
+            <div>
+              <h3 className="text-sm font-semibold mb-3">Ürün Detayları</h3>
+              <div className="space-y-2">
+                {selectedShipmentForDetails.items.map((item, idx) => {
+                  const vatAmount = item.total_price - (item.unit_price * item.quantity);
+                  return (
+                    <div
+                      key={idx}
+                      className="p-3 bg-white rounded-lg border border-[#E5E5E5]"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">{item.product_name}</span>
+                        <span className="text-sm font-semibold text-[#8F1A9F]">
+                          {item.total_price.toFixed(2)} TL
+                        </span>
+                      </div>
+                      <div className="text-xs text-[#555555] space-y-1">
+                        <div className="flex justify-between">
+                          <span>Birim Fiyat (KDV'li):</span>
+                          <span>
+                            {(item.unit_price_with_vat || item.unit_price || 0).toFixed(2)} TL
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Miktar:</span>
+                          <span>{item.quantity}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>KDV Tutarı:</span>
+                          <span className="text-red-600">{vatAmount.toFixed(2)} TL</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

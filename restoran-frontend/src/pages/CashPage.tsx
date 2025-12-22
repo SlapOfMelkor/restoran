@@ -164,8 +164,11 @@ export const CashPage: React.FC = () => {
     if (user?.role === "super_admin") {
       return true;
     }
-    // Branch admin sadece kendi işlemlerini geri alabilir
-    return movement.created_by_user_id === user?.id;
+    // Branch admin kendi şubesindeki tüm kayıtları geri alabilir
+    if (user?.role === "branch_admin" && user.branch_id) {
+      return movement.branch_id === user.branch_id;
+    }
+    return false;
   };
 
   const getMethodLabel = (method: string) => {

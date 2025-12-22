@@ -393,7 +393,11 @@ export const ExpensesPage: React.FC = () => {
     if (user?.role === "super_admin") {
       return true;
     }
-    return expense.created_by_user_id === user?.id;
+    // Branch admin kendi şubesindeki tüm kayıtları geri alabilir
+    if (user?.role === "branch_admin" && user.branch_id) {
+      return expense.branch_id === user.branch_id;
+    }
+    return false;
   };
 
   const canUndoPayment = (payment: ExpensePaymentWithLog): boolean => {
@@ -403,7 +407,11 @@ export const ExpensesPage: React.FC = () => {
     if (user?.role === "super_admin") {
       return true;
     }
-    return payment.created_by_user_id === user?.id;
+    // Branch admin kendi şubesindeki tüm kayıtları geri alabilir
+    if (user?.role === "branch_admin" && user.branch_id) {
+      return payment.branch_id === user.branch_id;
+    }
+    return false;
   };
 
 

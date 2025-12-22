@@ -69,50 +69,24 @@ interface ProduceBalance {
   remaining_debt: number;
 }
 
-interface MonthlyProduceUsage {
-  branch_id: number;
-  year: number;
-  month: number;
-  items: MonthlyProduceUsageItem[];
-  grand_total: number;
-}
-
-interface MonthlyProduceUsageItem {
-  product_id: number;
-  product_name: string;
-  product_unit: string;
-  total_qty: number;
-  total_amount: number;
-}
-
-interface ProduceCategory {
-  id: number;
-  name: string;
-  branch_id: number;
-  created_at: string;
-}
-
 export const ProducePage: React.FC = () => {
   const { user, selectedBranchId } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<ProduceCategory[]>([]);
   const [purchases, setPurchases] = useState<ProducePurchaseWithLog[]>([]);
   const [payments, setPayments] = useState<ProducePaymentWithLog[]>([]);
   const [balance, setBalance] = useState<ProduceBalance | null>(null);
-  const [monthlyUsage, setMonthlyUsage] = useState<MonthlyProduceUsage | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPurchaseForm, setShowPurchaseForm] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showPurchasesModal, setShowPurchasesModal] = useState(false);
+  const [showPaymentsModal, setShowPaymentsModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [editingCategory, setEditingCategory] = useState<ProduceCategory | null>(null);
   const [productFormData, setProductFormData] = useState({
     name: "",
     unit: "",
     stock_code: "",
   });
-  const [categoryFormData, setCategoryFormData] = useState({ name: "" });
   const [purchaseFormData, setPurchaseFormData] = useState({
     product_id: "",
     quantity: "",
@@ -125,10 +99,6 @@ export const ProducePage: React.FC = () => {
     date: new Date().toISOString().split("T")[0],
     description: "",
   });
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  });
   const [submitting, setSubmitting] = useState(false);
 
   const fetchProducts = async () => {
@@ -140,18 +110,6 @@ export const ProducePage: React.FC = () => {
     }
   };
 
-  const fetchCategories = async () => {
-    try {
-      const params: any = {};
-      if (user?.role === "super_admin" && selectedBranchId) {
-        params.branch_id = selectedBranchId;
-      }
-      const res = await apiClient.get("/produce-categories", { params });
-      setCategories(res.data);
-    } catch (err) {
-      console.error("Manav kategorileri yüklenemedi:", err);
-    }
-  };
 
   const fetchPurchases = async () => {
     setLoading(true);
@@ -257,30 +215,12 @@ export const ProducePage: React.FC = () => {
     }
   };
 
-  const fetchMonthlyUsage = async () => {
-    try {
-      const params: any = {};
-      if (user?.role === "super_admin" && selectedBranchId) {
-        params.branch_id = selectedBranchId;
-      }
-      const [year, month] = selectedMonth.split("-");
-      params.year = year;
-      params.month = month;
-      const res = await apiClient.get("/produce-purchases/monthly-usage", { params });
-      setMonthlyUsage(res.data);
-    } catch (err) {
-      console.error("Aylık kullanım yüklenemedi:", err);
-    }
-  };
-
   useEffect(() => {
     fetchProducts();
-    fetchCategories();
     fetchPurchases();
     fetchPayments();
     fetchBalance();
-    fetchMonthlyUsage();
-  }, [user, selectedBranchId, selectedMonth]);
+  }, [user, selectedBranchId]);
 
   const handlePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -324,7 +264,6 @@ export const ProducePage: React.FC = () => {
       setShowPurchaseForm(false);
       fetchPurchases();
       fetchBalance();
-      fetchMonthlyUsage();
     } catch (err: any) {
       alert(err.response?.data?.error || "Alım eklenemedi");
     } finally {
@@ -380,6 +319,7 @@ export const ProducePage: React.FC = () => {
       alert("Alım kaydı başarıyla geri alındı");
       await fetchPurchases();
       await fetchBalance();
+      setShowPurchasesModal(false);
     } catch (err: any) {
       alert(err.response?.data?.error || "Geri alma işlemi başarısız");
     }
@@ -395,6 +335,7 @@ export const ProducePage: React.FC = () => {
       alert("Ödeme kaydı başarıyla geri alındı");
       await fetchPayments();
       await fetchBalance();
+      setShowPaymentsModal(false);
     } catch (err: any) {
       alert(err.response?.data?.error || "Geri alma işlemi başarısız");
     }
@@ -407,7 +348,11 @@ export const ProducePage: React.FC = () => {
     if (user?.role === "super_admin") {
       return true;
     }
-    return purchase.created_by_user_id === user?.id;
+    // Branch admin kendi şubesindeki tüm kayıtları geri alabilir
+    if (user?.role === "branch_admin" && user.branch_id) {
+      return purchase.branch_id === user.branch_id;
+    }
+    return false;
   };
 
   const canUndoPayment = (payment: ProducePaymentWithLog): boolean => {
@@ -417,7 +362,11 @@ export const ProducePage: React.FC = () => {
     if (user?.role === "super_admin") {
       return true;
     }
-    return payment.created_by_user_id === user?.id;
+    // Branch admin kendi şubesindeki tüm kayıtları geri alabilir
+    if (user?.role === "branch_admin" && user.branch_id) {
+      return payment.branch_id === user.branch_id;
+    }
+    return false;
   };
 
   // Ürün yönetimi
@@ -481,62 +430,6 @@ export const ProducePage: React.FC = () => {
     setShowProductModal(true);
   };
 
-  // Kategori yönetimi
-  const handleCategorySubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!categoryFormData.name.trim()) {
-      alert("Lütfen kategori adı girin");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const payload: any = {
-        name: categoryFormData.name.trim(),
-      };
-      
-      if (user?.role === "super_admin" && selectedBranchId) {
-        payload.branch_id = selectedBranchId;
-      }
-
-      if (editingCategory) {
-        await apiClient.put(`/produce-categories/${editingCategory.id}`, payload);
-        alert("Kategori başarıyla güncellendi");
-      } else {
-        await apiClient.post("/produce-categories", payload);
-        alert("Kategori başarıyla oluşturuldu");
-      }
-
-      setCategoryFormData({ name: "" });
-      setEditingCategory(null);
-      setShowCategoryModal(false);
-      fetchCategories();
-    } catch (err: any) {
-      alert(err.response?.data?.error || "Kategori işlemi başarısız");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDeleteCategory = async (id: number) => {
-    if (!confirm("Bu kategoriyi silmek istediğinize emin misiniz?")) {
-      return;
-    }
-
-    try {
-      await apiClient.delete(`/produce-categories/${id}`);
-      alert("Kategori başarıyla silindi");
-      fetchCategories();
-    } catch (err: any) {
-      alert(err.response?.data?.error || "Kategori silinemedi");
-    }
-  };
-
-  const handleEditCategory = (category: ProduceCategory) => {
-    setEditingCategory(category);
-    setCategoryFormData({ name: category.name });
-    setShowCategoryModal(true);
-  };
 
   return (
     <div className="space-y-4">
@@ -556,14 +449,16 @@ export const ProducePage: React.FC = () => {
             Ürün Yönetimi
           </button>
           <button
-            onClick={() => {
-              setEditingCategory(null);
-              setCategoryFormData({ name: "" });
-              setShowCategoryModal(true);
-            }}
+            onClick={() => setShowPurchasesModal(true)}
             className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
           >
-            Kategori Yönetimi
+            Alım Kayıtları
+          </button>
+          <button
+            onClick={() => setShowPaymentsModal(true)}
+            className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
+          >
+            Ödeme Kayıtları
           </button>
           <button
             onClick={() => setShowPurchaseForm(true)}
@@ -848,213 +743,6 @@ export const ProducePage: React.FC = () => {
         </form>
       </Modal>
 
-      {/* Aylık Kullanım */}
-      <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold">Aylık Ürün Kullanımı</h2>
-          <input
-            type="month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-          />
-        </div>
-        {loading ? (
-          <p className="text-xs text-[#222222]">Yükleniyor...</p>
-        ) : monthlyUsage && monthlyUsage.items.length > 0 ? (
-          <div className="space-y-2">
-            {monthlyUsage.items.map((item) => (
-              <div
-                key={item.product_id}
-                className="p-3 bg-white rounded-xl border border-[#E5E5E5] shadow-sm"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium">{item.product_name}</div>
-                    <div className="text-xs text-[#222222]">
-                      {item.total_qty.toFixed(2)} {item.product_unit}
-                    </div>
-                  </div>
-                  <div className="text-sm font-semibold text-[#8F1A9F]">
-                    {item.total_amount.toFixed(2)} TL
-                  </div>
-                </div>
-              </div>
-            ))}
-            <div className="p-3 bg-white rounded-xl border-2 border-[#8F1A9F] shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-bold">Toplam</div>
-                <div className="text-lg font-bold text-[#8F1A9F]">
-                  {monthlyUsage.grand_total.toFixed(2)} TL
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <p className="text-xs text-[#222222]">
-            Bu ay için kullanım kaydı yok
-          </p>
-        )}
-      </div>
-
-      {/* Alımlar Listesi */}
-      <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold">Alım Kayıtları</h2>
-          {purchases.length > 0 && (
-            <div className="text-sm font-bold text-blue-600">
-              Toplam: {purchases.reduce((sum, p) => sum + p.total_amount, 0).toFixed(2)} TL
-            </div>
-          )}
-        </div>
-        {loading ? (
-          <p className="text-xs text-[#222222]">Yükleniyor...</p>
-        ) : purchases.length === 0 ? (
-          <p className="text-xs text-[#222222]">Henüz alım kaydı yok</p>
-        ) : (
-          <div className="space-y-2">
-            {purchases.map((purchase) => (
-              <div
-                key={purchase.id}
-                className={`p-3 bg-white rounded-xl border ${
-                  purchase.is_undone
-                    ? "border-[#CCCCCC] opacity-60"
-                    : "border-[#E5E5E5]"
-                } shadow-sm`}
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium">{purchase.product_name}</span>
-                      <span className="text-xs text-slate-500">•</span>
-                      <span className="text-xs text-[#222222]">
-                        {purchase.quantity.toFixed(2)} {purchase.product_unit}
-                      </span>
-                      <span className="text-xs text-slate-500">•</span>
-                      <span className="text-xs text-[#222222]">{purchase.date}</span>
-                      {purchase.created_by_user_name && (
-                        <>
-                          <span className="text-xs text-slate-500">•</span>
-                          <span className="text-xs text-[#222222]">
-                            👤 {purchase.created_by_user_name}
-                          </span>
-                        </>
-                      )}
-                      {purchase.is_undone && (
-                        <>
-                          <span className="text-xs text-slate-500">•</span>
-                          <span className="text-xs text-yellow-400">
-                            (Geri Alındı)
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    {purchase.description && (
-                      <div className="text-xs text-[#222222]">
-                        {purchase.description}
-                      </div>
-                    )}
-                    <div className="text-xs text-slate-500">
-                      Birim fiyat: {purchase.unit_price.toFixed(2)} TL
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-sm font-semibold text-right">
-                      {purchase.total_amount.toFixed(2)} TL
-                    </div>
-                    {purchase.log_id && canUndoPurchase(purchase) && (
-                      <button
-                        onClick={() =>
-                          handleUndoPurchase(purchase.log_id!, purchase.id)
-                        }
-                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors whitespace-nowrap"
-                      >
-                        Geri Al
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Ödemeler Listesi */}
-      <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold">Ödeme Kayıtları</h2>
-          {payments.length > 0 && (
-            <div className="text-sm font-bold text-green-600">
-              Toplam: {payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)} TL
-            </div>
-          )}
-        </div>
-        {loading ? (
-          <p className="text-xs text-[#222222]">Yükleniyor...</p>
-        ) : payments.length === 0 ? (
-          <p className="text-xs text-[#222222]">Henüz ödeme kaydı yok</p>
-        ) : (
-          <div className="space-y-2">
-            {payments.map((payment) => (
-              <div
-                key={payment.id}
-                className={`p-3 bg-white rounded-xl border ${
-                  payment.is_undone
-                    ? "border-[#CCCCCC] opacity-60"
-                    : "border-[#E5E5E5]"
-                } shadow-sm`}
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium">Manav Ödemesi</span>
-                      <span className="text-xs text-slate-500">•</span>
-                      <span className="text-xs text-[#222222]">{payment.date}</span>
-                      {payment.created_by_user_name && (
-                        <>
-                          <span className="text-xs text-slate-500">•</span>
-                          <span className="text-xs text-[#222222]">
-                            👤 {payment.created_by_user_name}
-                          </span>
-                        </>
-                      )}
-                      {payment.is_undone && (
-                        <>
-                          <span className="text-xs text-slate-500">•</span>
-                          <span className="text-xs text-yellow-400">
-                            (Geri Alındı)
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    {payment.description && (
-                      <div className="text-xs text-[#222222]">
-                        {payment.description}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-sm font-semibold text-right text-green-600">
-                      {payment.amount.toFixed(2)} TL
-                    </div>
-                    {payment.log_id && canUndoPayment(payment) && (
-                      <button
-                        onClick={() =>
-                          handleUndoPayment(payment.log_id!, payment.id)
-                        }
-                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors whitespace-nowrap"
-                      >
-                        Geri Al
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* Ürün Yönetimi Modal */}
       <Modal
@@ -1161,77 +849,86 @@ export const ProducePage: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Kategori Yönetimi Modal */}
+      {/* Alım Kayıtları Modal */}
       <Modal
-        isOpen={showCategoryModal}
-        onClose={() => {
-          setShowCategoryModal(false);
-          setEditingCategory(null);
-          setCategoryFormData({ name: "" });
-        }}
-        title={editingCategory ? "Kategori Düzenle" : "Yeni Kategori Ekle"}
-        maxWidth="md"
+        isOpen={showPurchasesModal}
+        onClose={() => setShowPurchasesModal(false)}
+        title="Alım Kayıtları"
+        maxWidth="lg"
       >
-        <form onSubmit={handleCategorySubmit} className="space-y-3">
-          <div>
-            <label className="block text-xs text-[#555555] mb-1">Kategori Adı</label>
-            <input
-              type="text"
-              value={categoryFormData.name}
-              onChange={(e) => setCategoryFormData({ name: e.target.value })}
-              className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-              placeholder="Örn: Sebze, Meyve"
-              required
-            />
-          </div>
-          <div className="flex gap-2 pt-2">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
-            >
-              {submitting ? "Kaydediliyor..." : editingCategory ? "Güncelle" : "Ekle"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowCategoryModal(false);
-                setEditingCategory(null);
-                setCategoryFormData({ name: "" });
-              }}
-              className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
-            >
-              İptal
-            </button>
-          </div>
-        </form>
-
-        {/* Kategori Listesi */}
-        <div className="mt-6 border-t border-[#E5E5E5] pt-4">
-          <h3 className="text-sm font-semibold mb-3">Mevcut Kategoriler</h3>
-          {categories.length === 0 ? (
-            <p className="text-xs text-[#555555]">Henüz kategori yok</p>
+        <div className="space-y-4">
+          {purchases.length > 0 && (
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-[#555555]">Toplam Alım:</span>
+              <span className="text-sm font-bold text-blue-600">
+                {purchases.reduce((sum, p) => sum + p.total_amount, 0).toFixed(2)} TL
+              </span>
+            </div>
+          )}
+          {loading ? (
+            <p className="text-xs text-[#222222]">Yükleniyor...</p>
+          ) : purchases.length === 0 ? (
+            <p className="text-xs text-[#222222]">Henüz alım kaydı yok</p>
           ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {categories.map((category) => (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {purchases.map((purchase) => (
                 <div
-                  key={category.id}
-                  className="flex items-center justify-between p-2 bg-white rounded border border-[#E5E5E5]"
+                  key={purchase.id}
+                  className={`p-3 bg-white rounded-xl border ${
+                    purchase.is_undone
+                      ? "border-[#CCCCCC] opacity-60"
+                      : "border-[#E5E5E5]"
+                  } shadow-sm`}
                 >
-                  <div className="text-sm font-medium">{category.name}</div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleEditCategory(category)}
-                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs transition-colors text-white"
-                    >
-                      Düzenle
-                    </button>
-                    <button
-                      onClick={() => handleDeleteCategory(category.id)}
-                      className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors text-white"
-                    >
-                      Sil
-                    </button>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium">{purchase.product_name}</span>
+                        <span className="text-xs text-slate-500">•</span>
+                        <span className="text-xs text-[#222222]">
+                          {purchase.quantity.toFixed(2)} {purchase.product_unit}
+                        </span>
+                        <span className="text-xs text-slate-500">•</span>
+                        <span className="text-xs text-[#222222]">{purchase.date}</span>
+                        {purchase.created_by_user_name && (
+                          <>
+                            <span className="text-xs text-slate-500">•</span>
+                            <span className="text-xs text-[#222222]">
+                              👤 {purchase.created_by_user_name}
+                            </span>
+                          </>
+                        )}
+                        {purchase.is_undone && (
+                          <>
+                            <span className="text-xs text-slate-500">•</span>
+                            <span className="text-xs text-yellow-400">
+                              (Geri Alındı)
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      {purchase.description && (
+                        <div className="text-xs text-[#222222]">
+                          {purchase.description}
+                        </div>
+                      )}
+                      <div className="text-xs text-slate-500">
+                        Birim fiyat: {purchase.unit_price.toFixed(2)} TL
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm font-semibold text-right">
+                        {purchase.total_amount.toFixed(2)} TL
+                      </div>
+                      {purchase.log_id && canUndoPurchase(purchase) && (
+                        <button
+                          onClick={() => handleUndoPurchase(purchase.log_id!, purchase.id)}
+                          className="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors whitespace-nowrap text-white"
+                        >
+                          Geri Al
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1239,6 +936,88 @@ export const ProducePage: React.FC = () => {
           )}
         </div>
       </Modal>
+
+      {/* Ödeme Kayıtları Modal */}
+      <Modal
+        isOpen={showPaymentsModal}
+        onClose={() => setShowPaymentsModal(false)}
+        title="Ödeme Kayıtları"
+        maxWidth="lg"
+      >
+        <div className="space-y-4">
+          {payments.length > 0 && (
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-[#555555]">Toplam Ödeme:</span>
+              <span className="text-sm font-bold text-green-600">
+                {payments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)} TL
+              </span>
+            </div>
+          )}
+          {loading ? (
+            <p className="text-xs text-[#222222]">Yükleniyor...</p>
+          ) : payments.length === 0 ? (
+            <p className="text-xs text-[#222222]">Henüz ödeme kaydı yok</p>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {payments.map((payment) => (
+                <div
+                  key={payment.id}
+                  className={`p-3 bg-white rounded-xl border ${
+                    payment.is_undone
+                      ? "border-[#CCCCCC] opacity-60"
+                      : "border-[#E5E5E5]"
+                  } shadow-sm`}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium">Manav Ödemesi</span>
+                        <span className="text-xs text-slate-500">•</span>
+                        <span className="text-xs text-[#222222]">{payment.date}</span>
+                        {payment.created_by_user_name && (
+                          <>
+                            <span className="text-xs text-slate-500">•</span>
+                            <span className="text-xs text-[#222222]">
+                              👤 {payment.created_by_user_name}
+                            </span>
+                          </>
+                        )}
+                        {payment.is_undone && (
+                          <>
+                            <span className="text-xs text-slate-500">•</span>
+                            <span className="text-xs text-yellow-400">
+                              (Geri Alındı)
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      {payment.description && (
+                        <div className="text-xs text-[#222222]">
+                          {payment.description}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm font-semibold text-right text-green-600">
+                        {payment.amount.toFixed(2)} TL
+                      </div>
+                      {payment.log_id && canUndoPayment(payment) && (
+                        <button
+                          onClick={() => handleUndoPayment(payment.log_id!, payment.id)}
+                          className="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors whitespace-nowrap text-white"
+                        >
+                          Geri Al
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
+
     </div>
   );
 };

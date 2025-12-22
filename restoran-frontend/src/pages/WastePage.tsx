@@ -185,7 +185,11 @@ export const WastePage: React.FC = () => {
     if (user?.role === "super_admin") {
       return true;
     }
-    return entry.created_by_user_id === user?.id;
+    // Branch admin kendi şubesindeki tüm kayıtları geri alabilir
+    if (user?.role === "branch_admin" && user.branch_id) {
+      return entry.branch_id === user.branch_id;
+    }
+    return false;
   };
 
   return (

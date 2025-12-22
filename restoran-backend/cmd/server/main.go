@@ -158,12 +158,6 @@ func main() {
 	protected.Put("/produce-products/:id", produce.UpdateProduceProductHandler())
 	protected.Delete("/produce-products/:id", produce.DeleteProduceProductHandler())
 
-	// Manav kategori yönetimi
-	protected.Get("/produce-categories", produce.ListProduceCategoriesHandler())
-	protected.Post("/produce-categories", produce.CreateProduceCategoryHandler())
-	protected.Put("/produce-categories/:id", produce.UpdateProduceCategoryHandler())
-	protected.Delete("/produce-categories/:id", produce.DeleteProduceCategoryHandler())
-
 	// Genel finansal özet (eski)
 	protected.Get("/financial-summary/monthly", financial.MonthlyFinancialSummaryHandler())
 
