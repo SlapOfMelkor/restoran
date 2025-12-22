@@ -87,10 +87,10 @@ func CreateStockEntryHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Tarih formatı 'YYYY-MM-DD' olmalı")
 		}
 
-		// Ürün kontrolü (sadece IsCenterProduct = true olanlar)
+		// Ürün kontrolü
 		var product models.Product
-		if err := database.DB.Where("id = ? AND is_center_product = ?", body.ProductID, true).First(&product).Error; err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, "Ürün bulunamadı veya manav ürünü")
+		if err := database.DB.First(&product, "id = ?", body.ProductID).Error; err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Ürün bulunamadı")
 		}
 
 		// Mevcut stok bilgisini hesapla (GetCurrentStockHandler mantığı ile aynı)
@@ -203,13 +203,11 @@ func ListStockEntriesHandler() fiber.Handler {
 			return err
 		}
 
-		// Sadece IsCenterProduct = true olan ürünlerin StockEntry'lerini listele
 		var entries []models.StockEntry
 		if err := database.DB.
-			Joins("JOIN products ON products.id = stock_entries.product_id AND products.is_center_product = ?", true).
 			Preload("Product").
-			Where("stock_entries.branch_id = ?", branchID).
-			Order("stock_entries.date DESC, stock_entries.created_at DESC").
+			Where("branch_id = ?", branchID).
+			Order("date DESC, created_at DESC").
 			Find(&entries).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Stok girişleri listelenemedi")
 		}
@@ -242,9 +240,9 @@ func GetCurrentStockHandler() fiber.Handler {
 			return err
 		}
 
-		// Her ürün için mevcut stoku hesapla (sadece IsCenterProduct = true olanlar)
+		// Her ürün için mevcut stoku hesapla
 		var products []models.Product
-		if err := database.DB.Where("is_center_product = ?", true).Find(&products).Error; err != nil {
+		if err := database.DB.Find(&products).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler listelenemedi")
 		}
 
@@ -372,9 +370,9 @@ func GetMonthlyStockUsageHandler() fiber.Handler {
 		// Ay içindeki sevkiyatlar (stoka kaydedilmiş olanlar)
 		// Ay sonundaki stok (ayın son günündeki veya sonrasındaki en son stok girişi)
 
-		// Sadece IsCenterProduct = true olan ürünleri listele
+		// Tüm ürünleri al
 		var products []models.Product
-		if err := database.DB.Where("is_center_product = ?", true).Find(&products).Error; err != nil {
+		if err := database.DB.Find(&products).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler listelenemedi")
 		}
 

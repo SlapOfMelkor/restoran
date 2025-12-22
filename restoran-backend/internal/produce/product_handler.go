@@ -29,12 +29,12 @@ type UpdateProduceProductRequest struct {
 	StockCode *string `json:"stock_code"`
 }
 
-// GET /api/produce-products (manav ürünleri - IsCenterProduct = false)
+// GET /api/produce-products
 func ListProduceProductsHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		var products []models.Product
-		if err := database.DB.Where("is_center_product = ?", false).Order("name asc").Find(&products).Error; err != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler listelenemedi")
+		var products []models.ProduceProduct
+		if err := database.DB.Order("name asc").Find(&products).Error; err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Manav ürünleri listelenemedi")
 		}
 
 		res := make([]ProduceProductResponse, 0, len(products))
@@ -66,29 +66,27 @@ func CreateProduceProductHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Name ve unit zorunlu")
 		}
 
-		// Ürün adı unique kontrolü (tüm ürünler arasında)
-		var existingProductByName models.Product
+		// Ürün adı unique kontrolü (sadece manav ürünleri arasında)
+		var existingProductByName models.ProduceProduct
 		if err := database.DB.Where("name = ?", body.Name).First(&existingProductByName).Error; err == nil {
 			return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("Bu ürün adı zaten kullanılıyor: %s", body.Name))
 		}
 
-		// Stok kodu unique kontrolü (boş değilse)
+		// Stok kodu unique kontrolü (boş değilse, sadece manav ürünleri arasında)
 		if body.StockCode != "" {
-			var existingProductByCode models.Product
-			if err := database.DB.Where("stock_code = ?", body.StockCode).First(&existingProductByCode).Error; err == nil {
-				return fiber.NewError(fiber.StatusBadRequest, "Bu stok kodu zaten kullanılıyor")
+			var existingProductByStockCode models.ProduceProduct
+			if err := database.DB.Where("stock_code = ?", body.StockCode).First(&existingProductByStockCode).Error; err == nil {
+				return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("Bu stok kodu zaten kullanılıyor: %s", body.StockCode))
 			}
 		}
 
-		p := models.Product{
-			Name:            body.Name,
-			Unit:            body.Unit,
-			StockCode:       body.StockCode,
-			IsCenterProduct: false, // Manav ürünü
+		p := models.ProduceProduct{
+			Name:      body.Name,
+			Unit:      body.Unit,
+			StockCode: body.StockCode,
 		}
 
 		if err := database.DB.Create(&p).Error; err != nil {
-			// Daha detaylı hata mesajı
 			return fiber.NewError(fiber.StatusInternalServerError, fmt.Sprintf("Ürün oluşturulamadı: %v", err))
 		}
 
@@ -106,9 +104,9 @@ func UpdateProduceProductHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		id := c.Params("id")
 
-		var p models.Product
-		if err := database.DB.First(&p, "id = ? AND is_center_product = ?", id, false).Error; err != nil {
-			return fiber.NewError(fiber.StatusNotFound, "Ürün bulunamadı")
+		var p models.ProduceProduct
+		if err := database.DB.First(&p, "id = ?", id).Error; err != nil {
+			return fiber.NewError(fiber.StatusNotFound, "Manav ürünü bulunamadı")
 		}
 
 		var body UpdateProduceProductRequest
@@ -121,9 +119,13 @@ func UpdateProduceProductHandler() fiber.Handler {
 			if name == "" {
 				return fiber.NewError(fiber.StatusBadRequest, "Name boş olamaz")
 			}
+			// Ürün adı unique kontrolü (sadece manav ürünleri arasında)
+			var existingProductByName models.ProduceProduct
+			if err := database.DB.Where("name = ? AND id != ?", name, id).First(&existingProductByName).Error; err == nil {
+				return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("Bu ürün adı zaten kullanılıyor: %s", name))
+			}
 			p.Name = name
 		}
-
 		if body.Unit != nil {
 			unit := strings.TrimSpace(*body.Unit)
 			if unit == "" {
@@ -131,21 +133,20 @@ func UpdateProduceProductHandler() fiber.Handler {
 			}
 			p.Unit = unit
 		}
-
 		if body.StockCode != nil {
 			stockCode := strings.TrimSpace(*body.StockCode)
-			// Eğer stok kodu değiştiriliyorsa ve boş değilse, unique kontrolü yap
+			// Eğer stok kodu boşaltılıyorsa veya yeni bir değer veriliyorsa unique kontrolü yap
 			if stockCode != "" && stockCode != p.StockCode {
-				var existingProduct models.Product
-				if err := database.DB.Where("stock_code = ? AND id != ?", stockCode, id).First(&existingProduct).Error; err == nil {
-					return fiber.NewError(fiber.StatusBadRequest, "Bu stok kodu zaten kullanılıyor")
+				var existingProductByStockCode models.ProduceProduct
+				if err := database.DB.Where("stock_code = ? AND id != ?", stockCode, id).First(&existingProductByStockCode).Error; err == nil {
+					return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("Bu stok kodu zaten kullanılıyor: %s", stockCode))
 				}
 			}
 			p.StockCode = stockCode
 		}
 
 		if err := database.DB.Save(&p).Error; err != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, "Ürün güncellenemedi")
+			return fiber.NewError(fiber.StatusInternalServerError, fmt.Sprintf("Manav ürünü güncellenemedi: %v", err))
 		}
 
 		return c.JSON(ProduceProductResponse{
@@ -162,23 +163,28 @@ func DeleteProduceProductHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		id := c.Params("id")
 
-		var p models.Product
-		if err := database.DB.First(&p, "id = ? AND is_center_product = ?", id, false).Error; err != nil {
-			return fiber.NewError(fiber.StatusNotFound, "Ürün bulunamadı")
+		var p models.ProduceProduct
+		if err := database.DB.First(&p, "id = ?", id).Error; err != nil {
+			return fiber.NewError(fiber.StatusNotFound, "Manav ürünü bulunamadı")
 		}
 
-		// Ürüne ait manav alımları var mı kontrol et
+		// Ürüne ait alım var mı kontrol et
 		var count int64
 		database.DB.Model(&models.ProducePurchase{}).Where("product_id = ?", id).Count(&count)
 		if count > 0 {
-			return fiber.NewError(fiber.StatusBadRequest, "Bu ürüne ait manav alımları var, önce alımları silin")
+			return fiber.NewError(fiber.StatusBadRequest, "Bu ürüne ait alım kayıtları var, önce alımları silin")
+		}
+
+		// Ürüne ait zayiat var mı kontrol et
+		database.DB.Model(&models.ProduceWaste{}).Where("product_id = ?", id).Count(&count)
+		if count > 0 {
+			return fiber.NewError(fiber.StatusBadRequest, "Bu ürüne ait zayiat kayıtları var, önce zayiat kayıtlarını silin")
 		}
 
 		if err := database.DB.Delete(&p).Error; err != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, "Ürün silinemedi")
+			return fiber.NewError(fiber.StatusInternalServerError, "Manav ürünü silinemedi")
 		}
 
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 }
-

@@ -7,8 +7,8 @@ type ProducePurchase struct {
 	ID          uint    `gorm:"primaryKey"`
 	BranchID    uint    `gorm:"index;not null"`
 	Branch      Branch
-	ProductID   uint    `gorm:"index;not null"`
-	Product     Product
+	ProductID   uint    `gorm:"index;not null"` // ProduceProduct ID
+	Product     ProduceProduct
 	Quantity    float64 `gorm:"not null"` // miktar (kg, adet vs.)
 	UnitPrice   float64 `gorm:"not null"` // birim fiyat
 	TotalAmount float64 `gorm:"not null"` // toplam tutar (quantity * unit_price)

@@ -28,24 +28,11 @@ type UpdateProductRequest struct {
 	StockCode *string `json:"stock_code"` // Opsiyonel
 }
 
-// GET /api/products?is_center_product=true (tüm authenticated kullanıcılar görebilir)
-// Varsayılan olarak sadece IsCenterProduct = true olan ürünleri döndürür
+// GET /api/products (tüm authenticated kullanıcılar görebilir)
 func ListProductsHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		dbq := database.DB.Model(&models.Product{})
-		
-		// is_center_product filter'ı
-		isCenterProductStr := c.Query("is_center_product")
-		if isCenterProductStr == "false" {
-			// Sadece false isteğinde manav ürünlerini döndür
-			dbq = dbq.Where("is_center_product = ?", false)
-		} else {
-			// Varsayılan: Sadece center product'ları döndür (true veya parametre yoksa)
-			dbq = dbq.Where("is_center_product = ?", true)
-		}
-
 		var products []models.Product
-		if err := dbq.Order("name asc").Find(&products).Error; err != nil {
+		if err := database.DB.Order("name asc").Find(&products).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler listelenemedi")
 		}
 

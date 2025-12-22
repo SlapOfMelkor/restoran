@@ -165,10 +165,10 @@ func CreateCenterShipmentHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Tarih formatı 'YYYY-MM-DD' olmalı")
 		}
 
-		// Ürün var mı? (sadece IsCenterProduct = true olanlar)
+		// Ürün var mı?
 		var product models.Product
-		if err := database.DB.Where("id = ? AND is_center_product = ?", body.ProductID, true).First(&product).Error; err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, "Ürün bulunamadı veya manav ürünü")
+		if err := database.DB.First(&product, "id = ?", body.ProductID).Error; err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Ürün bulunamadı")
 		}
 
 		totalPrice := body.Quantity * body.UnitPrice
@@ -236,23 +236,22 @@ func ListCenterShipmentsHandler() fiber.Handler {
 		productIDStr := c.Query("product_id")
 
 		dbq := database.DB.Model(&models.CenterShipment{}).
-			Joins("JOIN products ON products.id = center_shipments.product_id AND products.is_center_product = ?", true).
 			Preload("Product").
-			Where("center_shipments.branch_id = ?", branchID)
+			Where("branch_id = ?", branchID)
 
 		if fromStr != "" {
 			from, err := time.Parse("2006-01-02", fromStr)
 			if err != nil {
 				return fiber.NewError(fiber.StatusBadRequest, "from geçersiz")
 			}
-			dbq = dbq.Where("center_shipments.date >= ?", from)
+			dbq = dbq.Where("date >= ?", from)
 		}
 		if toStr != "" {
 			to, err := time.Parse("2006-01-02", toStr)
 			if err != nil {
 				return fiber.NewError(fiber.StatusBadRequest, "to geçersiz")
 			}
-			dbq = dbq.Where("center_shipments.date <= ?", to)
+			dbq = dbq.Where("date <= ?", to)
 		}
 
 		if productIDStr != "" {
@@ -260,20 +259,16 @@ func ListCenterShipmentsHandler() fiber.Handler {
 			if _, err := fmt.Sscan(productIDStr, &pid); err != nil || pid == 0 {
 				return fiber.NewError(fiber.StatusBadRequest, "product_id geçersiz")
 			}
-			dbq = dbq.Where("center_shipments.product_id = ?", pid)
+			dbq = dbq.Where("product_id = ?", pid)
 		}
 
 		var records []models.CenterShipment
-		if err := dbq.Order("center_shipments.date asc, center_shipments.id asc").Find(&records).Error; err != nil {
+		if err := dbq.Order("date asc, id asc").Find(&records).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Kayıtlar listelenemedi")
 		}
 
 		resp := make([]CenterShipmentResponse, 0, len(records))
 		for _, r := range records {
-			// Product yüklenmemişse (manav ürünü ise) atla
-			if r.Product.ID == 0 {
-				continue
-			}
 			resp = append(resp, CenterShipmentResponse{
 				ID:         r.ID,
 				BranchID:   r.BranchID,
@@ -321,10 +316,10 @@ func CreateStockSnapshotHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Tarih formatı 'YYYY-MM-DD' olmalı")
 		}
 
-		// ürün kontrol (sadece IsCenterProduct = true olanlar)
+		// ürün kontrol
 		var product models.Product
-		if err := database.DB.Where("id = ? AND is_center_product = ?", body.ProductID, true).First(&product).Error; err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, "Ürün bulunamadı veya manav ürünü")
+		if err := database.DB.First(&product, "id = ?", body.ProductID).Error; err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Ürün bulunamadı")
 		}
 
 		ss := models.StockSnapshot{
@@ -396,20 +391,15 @@ func ListStockSnapshotsHandler() fiber.Handler {
 
 		var snapshots []models.StockSnapshot
 		if err := database.DB.
-			Joins("JOIN products ON products.id = stock_snapshots.product_id AND products.is_center_product = ?", true).
 			Preload("Product").
-			Where("stock_snapshots.branch_id = ?", branchID).
-			Order("stock_snapshots.snapshot_date DESC, stock_snapshots.created_at DESC").
+			Where("branch_id = ?", branchID).
+			Order("snapshot_date DESC, created_at DESC").
 			Find(&snapshots).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Stok snapshot'ları listelenemedi")
 		}
 
 		res := make([]StockSnapshotResponse, 0, len(snapshots))
 		for _, ss := range snapshots {
-			// Product yüklenmemişse (manav ürünü ise) atla
-			if ss.Product.ID == 0 {
-				continue
-			}
 			res = append(res, StockSnapshotResponse{
 				ID:           ss.ID,
 				BranchID:     ss.BranchID,
@@ -536,7 +526,7 @@ func MonthlyStockReportHandler() fiber.Handler {
 
 		var products []models.Product
 		if len(ids) > 0 {
-			if err := database.DB.Where("id IN ? AND is_center_product = ?", ids, true).Find(&products).Error; err != nil {
+			if err := database.DB.Where("id IN ?", ids).Find(&products).Error; err != nil {
 				return fiber.NewError(fiber.StatusInternalServerError, "Ürünler yüklenemedi")
 			}
 		}

@@ -178,9 +178,9 @@ func CreateProducePurchaseHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Tarih formatı 'YYYY-MM-DD' olmalı")
 		}
 
-		// Ürün var mı ve manav ürünü mü kontrol et
-		var product models.Product
-		if err := database.DB.First(&product, "id = ? AND is_center_product = ?", body.ProductID, false).Error; err != nil {
+		// Ürün var mı?
+		var product models.ProduceProduct
+		if err := database.DB.First(&product, "id = ?", body.ProductID).Error; err != nil {
 			return fiber.NewError(fiber.StatusBadRequest, "Manav ürünü bulunamadı")
 		}
 
@@ -392,14 +392,14 @@ func GetMonthlyProduceUsageHandler() fiber.Handler {
 			productIDs = append(productIDs, r.ProductID)
 		}
 
-		var products []models.Product
+		var products []models.ProduceProduct
 		if len(productIDs) > 0 {
 			if err := database.DB.Where("id IN ?", productIDs).Find(&products).Error; err != nil {
-				return fiber.NewError(fiber.StatusInternalServerError, "Ürünler yüklenemedi")
+				return fiber.NewError(fiber.StatusInternalServerError, "Manav ürünleri yüklenemedi")
 			}
 		}
 
-		productMap := make(map[uint]models.Product)
+		productMap := make(map[uint]models.ProduceProduct)
 		for _, p := range products {
 			productMap[p.ID] = p
 		}
