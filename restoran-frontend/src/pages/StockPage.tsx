@@ -16,6 +16,7 @@ interface StockEntry {
   product_name: string;
   date: string;
   quantity: number;
+  note?: string;
   created_at: string;
 }
 
@@ -756,6 +757,11 @@ export const StockPage: React.FC = () => {
                                   return `${entry.quantity.toFixed(2)} ${unit}`;
                                 })()}
                               </div>
+                              {entry.note && (
+                                <div className="text-xs text-blue-400 mt-1">
+                                  {entry.note}
+                                </div>
+                              )}
                             </div>
                             <div className="flex items-center gap-2">
                               {entry.log_id && canUndo(entry) && (

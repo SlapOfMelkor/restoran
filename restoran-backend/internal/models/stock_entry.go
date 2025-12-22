@@ -11,6 +11,7 @@ type StockEntry struct {
 	Product   Product
 	Date      time.Time `gorm:"index;not null"` // sayım tarihi
 	Quantity  float64   `gorm:"not null"`      // o anki stok miktarı
+	Note      string    `gorm:"size:255"`      // Opsiyonel not (ör: "Sevkiyat #123")
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

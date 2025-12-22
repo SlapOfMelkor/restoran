@@ -287,10 +287,19 @@ func StockShipmentHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Bu sevkiyat zaten stoka kaydedilmiş")
 		}
 
-		// Sevkiyat stoka kaydedildiğinde StockEntry oluşturma
-		// Sadece IsStocked flag'ini güncelle
-		// Mevcut stok hesaplaması GetCurrentStockHandler'da yapılacak:
-		// En son manuel sayım + (sayımdan sonra gelen sevkiyatlar)
+		// Sevkiyat stoka kaydedildiğinde her item için StockEntry oluştur
+		for _, item := range shipment.Items {
+			entry := models.StockEntry{
+				BranchID:  shipment.BranchID,
+				ProductID: item.ProductID,
+				Date:      shipment.Date,
+				Quantity:  item.Quantity,
+				Note:      fmt.Sprintf("Sevkiyat #%d", shipment.ID),
+			}
+			if err := database.DB.Create(&entry).Error; err != nil {
+				return fiber.NewError(fiber.StatusInternalServerError, fmt.Sprintf("Stok girişi oluşturulamadı: %v", err))
+			}
+		}
 
 		// Sevkiyatı stoka kaydedildi olarak işaretle
 		shipment.IsStocked = true

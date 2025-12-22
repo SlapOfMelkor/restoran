@@ -131,6 +131,8 @@ func deleteEntity(entityType string, entityID uint) error {
 	switch entityType {
 	case "expense":
 		return database.DB.Delete(&models.Expense{}, "id = ?", entityID).Error
+	case "expense_payment":
+		return database.DB.Delete(&models.ExpensePayment{}, "id = ?", entityID).Error
 	case "cash_movement":
 		return database.DB.Delete(&models.CashMovement{}, "id = ?", entityID).Error
 	case "center_shipment":
@@ -158,6 +160,14 @@ func recreateEntity(entityType string, dataJSON string) error {
 		}
 		expense.ID = 0 // Yeni entity oluştur
 		return database.DB.Create(&expense).Error
+
+	case "expense_payment":
+		var payment models.ExpensePayment
+		if err := json.Unmarshal([]byte(dataJSON), &payment); err != nil {
+			return err
+		}
+		payment.ID = 0 // Yeni entity oluştur
+		return database.DB.Create(&payment).Error
 
 	case "cash_movement":
 		var movement models.CashMovement
@@ -235,6 +245,21 @@ func restoreEntity(entityType string, entityID uint, dataJSON string) error {
 			"date":        expense.Date,
 			"amount":      expense.Amount,
 			"description": expense.Description,
+		}).Error
+
+	case "expense_payment":
+		var payment models.ExpensePayment
+		if err := json.Unmarshal([]byte(dataJSON), &payment); err != nil {
+			return err
+		}
+		// ID'yi set et ve update et
+		payment.ID = entityID
+		return database.DB.Model(&models.ExpensePayment{}).Where("id = ?", entityID).Updates(map[string]interface{}{
+			"branch_id":   payment.BranchID,
+			"category_id": payment.CategoryID,
+			"date":        payment.Date,
+			"amount":      payment.Amount,
+			"description": payment.Description,
 		}).Error
 
 	case "cash_movement":

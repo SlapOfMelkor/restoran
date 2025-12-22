@@ -21,13 +21,14 @@ type CreateStockEntryRequest struct {
 }
 
 type StockEntryResponse struct {
-	ID         uint    `json:"id"`
-	BranchID   uint    `json:"branch_id"`
-	ProductID  uint    `json:"product_id"`
-	ProductName string `json:"product_name"`
-	Date       string  `json:"date"`
-	Quantity   float64 `json:"quantity"`
-	CreatedAt  string  `json:"created_at"`
+	ID          uint    `json:"id"`
+	BranchID    uint    `json:"branch_id"`
+	ProductID   uint    `json:"product_id"`
+	ProductName string  `json:"product_name"`
+	Date        string  `json:"date"`
+	Quantity    float64 `json:"quantity"`
+	Note        string  `json:"note"`
+	CreatedAt   string  `json:"created_at"`
 }
 
 // Yardımcı: Kullanıcı bilgilerini al
@@ -188,6 +189,7 @@ func CreateStockEntryHandler() fiber.Handler {
 			ProductName: product.Name,
 			Date:        entry.Date.Format("2006-01-02"),
 			Quantity:    entry.Quantity,
+			Note:        entry.Note,
 			CreatedAt:   entry.CreatedAt.Format("2006-01-02 15:04:05"),
 		})
 	}
@@ -219,6 +221,7 @@ func ListStockEntriesHandler() fiber.Handler {
 				ProductName: e.Product.Name,
 				Date:        e.Date.Format("2006-01-02"),
 				Quantity:    e.Quantity,
+				Note:        e.Note,
 				CreatedAt:   e.CreatedAt.Format("2006-01-02 15:04:05"),
 			})
 		}
