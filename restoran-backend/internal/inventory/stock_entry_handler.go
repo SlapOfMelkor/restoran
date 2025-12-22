@@ -203,11 +203,13 @@ func ListStockEntriesHandler() fiber.Handler {
 			return err
 		}
 
+		// Sadece IsCenterProduct = true olan ürünlerin StockEntry'lerini listele
 		var entries []models.StockEntry
 		if err := database.DB.
+			Joins("JOIN products ON products.id = stock_entries.product_id AND products.is_center_product = ?", true).
 			Preload("Product").
-			Where("branch_id = ?", branchID).
-			Order("date DESC, created_at DESC").
+			Where("stock_entries.branch_id = ?", branchID).
+			Order("stock_entries.date DESC, stock_entries.created_at DESC").
 			Find(&entries).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Stok girişleri listelenemedi")
 		}
@@ -463,9 +465,9 @@ func GetStockUsageBetweenCountsHandler() fiber.Handler {
 			return err
 		}
 
-		// Tüm ürünleri al
+		// Tüm ürünleri al (sadece IsCenterProduct = true olanlar)
 		var products []models.Product
-		if err := database.DB.Find(&products).Error; err != nil {
+		if err := database.DB.Where("is_center_product = ?", true).Find(&products).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler listelenemedi")
 		}
 

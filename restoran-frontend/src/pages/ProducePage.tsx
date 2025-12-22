@@ -104,9 +104,11 @@ export const ProducePage: React.FC = () => {
   const fetchProducts = async () => {
     try {
       const res = await apiClient.get("/produce-products");
-      setProducts(res.data);
+      console.log("Manav ürünleri yüklendi:", res.data);
+      setProducts(res.data || []);
     } catch (err) {
       console.error("Manav ürünleri yüklenemedi:", err);
+      setProducts([]);
     }
   };
 
