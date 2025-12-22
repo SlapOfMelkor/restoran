@@ -516,12 +516,10 @@ export const ShipmentsPage: React.FC = () => {
                       <div className="flex-1">
                         <div className="text-sm font-medium">{p.product_name}</div>
                         <div className="text-xs text-[#222222]">
-                          Stok Kodu: {p.stock_code || "Yok"} • Miktar: {p.quantity} {p.quantity_unit}
+                          Stok Kodu: {p.stock_code || "Yok"}
                         </div>
                         <div className="text-xs text-[#555555] mt-1">
-                          KDV'siz Birim: {p.unit_price.toFixed(2)} TL • 
-                          KDV'li Birim: {(p.unit_price_with_vat || (p.total_amount / (p.quantity || 1))).toFixed(2)} TL • 
-                          Toplam (KDV'li): {p.total_amount.toFixed(2)} TL
+                          {(p.unit_price_with_vat || (p.total_amount / (p.quantity || 1))).toFixed(2)} TL × {p.quantity} {p.quantity_unit} = {p.total_amount.toFixed(2)} TL ({(p.total_amount - (p.unit_price * p.quantity)).toFixed(2)} TL KDV)
                         </div>
                         {p.matched_product_id ? (
                           <div className="text-xs text-green-600 mt-1">
@@ -768,16 +766,17 @@ export const ShipmentsPage: React.FC = () => {
                 {/* Ürün detayları */}
                 <div className="mt-2 pt-2 border-t border-slate-700">
                   <div className="text-xs text-[#222222] space-y-1">
-                    {shipment.items.map((item, idx) => (
-                      <div key={idx} className="flex justify-between">
-                        <span>{item.product_name}</span>
-                        <span className="text-xs">
-                          {item.quantity} x {item.unit_price?.toFixed(2) || "0.00"} (KDV'siz) / 
-                          {item.unit_price_with_vat?.toFixed(2) || item.unit_price?.toFixed(2) || "0.00"} (KDV'li) = 
-                          {item.total_price.toFixed(2)} TL
-                        </span>
-                      </div>
-                    ))}
+                    {shipment.items.map((item, idx) => {
+                      const vatAmount = item.total_price - (item.unit_price * item.quantity);
+                      return (
+                        <div key={idx} className="flex justify-between">
+                          <span>{item.product_name}</span>
+                          <span className="text-xs">
+                            {(item.unit_price_with_vat || item.unit_price || 0).toFixed(2)} TL × {item.quantity} = {item.total_price.toFixed(2)} TL ({vatAmount.toFixed(2)} TL KDV)
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
