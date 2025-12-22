@@ -204,7 +204,8 @@ func parsePDFTable(text string) ([]ParsedProduct, error) {
 	return products, nil
 }
 
-// matchProduct: Ürün adını ve stok kodunu sistemdeki ürünlerle eşleştir (fuzzy matching)
+// matchProduct: Ürün adını ve stok kodunu sistemdeki ürünlerle eşleştir (sadece tam eşleşme)
+// Sadece stok kodu veya tam isim eşleşmesi yapar, kısmi eşleşme yapmaz
 func matchProduct(productName string, stockCode string) (*models.Product, error) {
 	productName = strings.TrimSpace(productName)
 	stockCode = strings.TrimSpace(stockCode)
@@ -217,14 +218,9 @@ func matchProduct(productName string, stockCode string) (*models.Product, error)
 		}
 	}
 	
-	// Stok kodu eşleşmediyse veya yoksa, isme göre eşleştir
+	// Stok kodu eşleşmediyse veya yoksa, isme göre tam eşleşme ara
 	if productName == "" {
 		return nil, nil
-	}
-	
-	var products []models.Product
-	if err := database.DB.Find(&products).Error; err != nil {
-		return nil, err
 	}
 	
 	// Normalize: küçük harfe çevir, Türkçe karakterleri düzelt
@@ -236,12 +232,21 @@ func matchProduct(productName string, stockCode string) (*models.Product, error)
 		s = strings.ReplaceAll(s, "ş", "s")
 		s = strings.ReplaceAll(s, "ö", "o")
 		s = strings.ReplaceAll(s, "ç", "c")
+		// Fazla boşlukları temizle
+		s = strings.TrimSpace(s)
+		s = regexp.MustCompile(`\s+`).ReplaceAllString(s, " ")
 		return s
 	}
 	
 	normalizedProductName := normalize(productName)
 	
-	// Önce tam eşleşme ara
+	// Tüm ürünleri yükle ve tam eşleşme ara
+	var products []models.Product
+	if err := database.DB.Find(&products).Error; err != nil {
+		return nil, err
+	}
+	
+	// Tam eşleşme ara (normalize edilmiş isimler)
 	for _, p := range products {
 		normalizedPName := normalize(p.Name)
 		if normalizedPName == normalizedProductName {
@@ -249,29 +254,8 @@ func matchProduct(productName string, stockCode string) (*models.Product, error)
 		}
 	}
 	
-	// Tam eşleşme yoksa, kısmi eşleşme ara (en uzun ortak substring)
-	bestMatch := (*models.Product)(nil)
-	bestScore := 0
-	
-	for _, p := range products {
-		normalizedPName := normalize(p.Name)
-		
-		// Eğer PDF'deki ürün adı, sistemdeki ürün adını içeriyorsa veya tam tersi
-		if strings.Contains(normalizedProductName, normalizedPName) || strings.Contains(normalizedPName, normalizedProductName) {
-			score := len(normalizedPName)
-			if score > bestScore {
-				bestScore = score
-				bestMatch = &p
-			}
-		}
-	}
-	
-	// En az 5 karakterlik eşleşme olsun
-	if bestScore >= 5 {
-		return bestMatch, nil
-	}
-	
-	return nil, nil // Eşleşme bulunamadı
+	// Tam eşleşme bulunamadı, yeni ürün oluşturulacak
+	return nil, nil
 }
 
 // ExtractDateFromPDF: PDF text'inden sipariş tarihini çıkar
