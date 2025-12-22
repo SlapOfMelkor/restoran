@@ -68,7 +68,7 @@ devnotes.md
 coverage/
 *.cover
 *.coverprofile
-
+docker-cleanup.md
 # Cache directories
 .cache/
 .parcel-cache/

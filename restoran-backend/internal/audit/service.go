@@ -149,6 +149,8 @@ func deleteEntity(entityType string, entityID uint) error {
 		return database.DB.Delete(&models.ProducePurchase{}, "id = ?", entityID).Error
 	case "produce_payment":
 		return database.DB.Delete(&models.ProducePayment{}, "id = ?", entityID).Error
+	case "produce_waste":
+		return database.DB.Delete(&models.ProduceWaste{}, "id = ?", entityID).Error
 	default:
 		return fmt.Errorf("bilinmeyen entity tipi: %s", entityType)
 	}
@@ -243,6 +245,14 @@ func recreateEntity(entityType string, dataJSON string) error {
 		}
 		payment.ID = 0
 		return database.DB.Create(&payment).Error
+
+	case "produce_waste":
+		var waste models.ProduceWaste
+		if err := json.Unmarshal([]byte(dataJSON), &waste); err != nil {
+			return err
+		}
+		waste.ID = 0
+		return database.DB.Create(&waste).Error
 
 	default:
 		return fmt.Errorf("bilinmeyen entity tipi: %s", entityType)
@@ -394,6 +404,21 @@ func restoreEntity(entityType string, entityID uint, dataJSON string) error {
 			"amount":      payment.Amount,
 			"date":        payment.Date,
 			"description": payment.Description,
+		}).Error
+
+	case "produce_waste":
+		var waste models.ProduceWaste
+		if err := json.Unmarshal([]byte(dataJSON), &waste); err != nil {
+			return err
+		}
+		waste.ID = entityID
+		return database.DB.Model(&models.ProduceWaste{}).Where("id = ?", entityID).Updates(map[string]interface{}{
+			"branch_id":   waste.BranchID,
+			"product_id":  waste.ProductID,
+			"purchase_id": waste.PurchaseID,
+			"quantity":    waste.Quantity,
+			"date":        waste.Date,
+			"description": waste.Description,
 		}).Error
 
 	default:

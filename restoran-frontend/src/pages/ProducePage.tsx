@@ -59,6 +59,14 @@ interface ProduceWaste {
   created_at: string;
 }
 
+interface ProduceWasteWithLog extends ProduceWaste {
+  created_by_user_id?: number;
+  created_by_user_name?: string;
+  created_at?: string;
+  log_id?: number;
+  is_undone?: boolean;
+}
+
 interface AuditLog {
   id: number;
   created_at: string;
@@ -86,6 +94,7 @@ export const ProducePage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [purchases, setPurchases] = useState<ProducePurchaseWithLog[]>([]);
   const [payments, setPayments] = useState<ProducePaymentWithLog[]>([]);
+  const [wastes, setWastes] = useState<ProduceWasteWithLog[]>([]);
   const [balance, setBalance] = useState<ProduceBalance | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPurchaseForm, setShowPurchaseForm] = useState(false);
@@ -94,6 +103,7 @@ export const ProducePage: React.FC = () => {
   const [showProductModal, setShowProductModal] = useState(false);
   const [showPurchasesModal, setShowPurchasesModal] = useState(false);
   const [showPaymentsModal, setShowPaymentsModal] = useState(false);
+  const [showWastesModal, setShowWastesModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productFormData, setProductFormData] = useState({
     name: "",
@@ -237,10 +247,58 @@ export const ProducePage: React.FC = () => {
     }
   };
 
+  const fetchWastes = async () => {
+    setLoading(true);
+    try {
+      const params: any = {};
+      if (user?.role === "super_admin" && selectedBranchId) {
+        params.branch_id = selectedBranchId;
+      }
+      const wastesRes = await apiClient.get("/produce-waste", { params });
+      
+      // Audit log'ları çek
+      const logParams: any = {
+        entity_type: "produce_waste",
+      };
+      if (user?.role === "super_admin") {
+        if (selectedBranchId) {
+          logParams.branch_id = selectedBranchId;
+        }
+      }
+      const logsRes = await apiClient.get("/audit-logs", { params: logParams });
+      
+      // Waste'leri log'larla birleştir
+      const wastesWithLogs: ProduceWasteWithLog[] = wastesRes.data.map((waste: ProduceWaste) => {
+        const createLog = logsRes.data.find(
+          (log: AuditLog) =>
+            log.entity_type === "produce_waste" &&
+            log.entity_id === waste.id &&
+            log.action === "create"
+        );
+        
+        return {
+          ...waste,
+          created_by_user_id: createLog?.user_id,
+          created_by_user_name: createLog?.user_name,
+          created_at: createLog?.created_at,
+          log_id: createLog?.id,
+          is_undone: createLog?.is_undone || false,
+        };
+      });
+      
+      setWastes(wastesWithLogs);
+    } catch (err) {
+      console.error("Zayiat kayıtları yüklenemedi:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchProducts();
     fetchPurchases();
     fetchPayments();
+    fetchWastes();
     fetchBalance();
   }, [user, selectedBranchId]);
 
@@ -367,11 +425,41 @@ export const ProducePage: React.FC = () => {
         description: "",
       });
       setShowWasteForm(false);
+      fetchWastes();
     } catch (err: any) {
       alert(err.response?.data?.error || "Zayiat kaydı eklenemedi");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleUndoWaste = async (logId: number, _wasteId: number) => {
+    if (!confirm("Bu zayiat kaydını geri almak istediğinize emin misiniz?")) {
+      return;
+    }
+
+    try {
+      await apiClient.post(`/audit-logs/${logId}/undo`);
+      alert("Zayiat kaydı başarıyla geri alındı");
+      await fetchWastes();
+      setShowWastesModal(false);
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Geri alma işlemi başarısız");
+    }
+  };
+
+  const canUndoWaste = (waste: ProduceWasteWithLog): boolean => {
+    if (!waste.log_id || waste.is_undone) {
+      return false;
+    }
+    if (user?.role === "super_admin") {
+      return true;
+    }
+    // Branch admin kendi şubesindeki tüm kayıtları geri alabilir
+    if (user?.role === "branch_admin" && user.branch_id) {
+      return waste.branch_id === user.branch_id;
+    }
+    return false;
   };
 
   const handleUndoPurchase = async (logId: number, _purchaseId: number) => {
@@ -524,6 +612,15 @@ export const ProducePage: React.FC = () => {
             className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
           >
             Ödeme Kayıtları
+          </button>
+          <button
+            onClick={() => {
+              fetchWastes();
+              setShowWastesModal(true);
+            }}
+            className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
+          >
+            Zayiat Kayıtları
           </button>
           <button
             onClick={() => setShowPurchaseForm(true)}
@@ -1223,6 +1320,83 @@ export const ProducePage: React.FC = () => {
                       {payment.log_id && canUndoPayment(payment) && (
                         <button
                           onClick={() => handleUndoPayment(payment.log_id!, payment.id)}
+                          className="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors whitespace-nowrap text-white"
+                        >
+                          Geri Al
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Zayiat Kayıtları Modal */}
+      <Modal
+        isOpen={showWastesModal}
+        onClose={() => setShowWastesModal(false)}
+        title="Zayiat Kayıtları"
+        maxWidth="lg"
+      >
+        <div className="space-y-4">
+          {loading ? (
+            <p className="text-xs text-[#222222]">Yükleniyor...</p>
+          ) : wastes.length === 0 ? (
+            <p className="text-xs text-[#222222]">Henüz zayiat kaydı yok</p>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {wastes.map((waste) => (
+                <div
+                  key={waste.id}
+                  className={`p-3 bg-white rounded-xl border ${
+                    waste.is_undone
+                      ? "border-[#CCCCCC] opacity-60"
+                      : "border-[#E5E5E5]"
+                  } shadow-sm`}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium">{waste.product_name}</span>
+                        <span className="text-xs text-slate-500">•</span>
+                        <span className="text-xs text-[#222222]">{waste.quantity}</span>
+                        <span className="text-xs text-slate-500">•</span>
+                        <span className="text-xs text-[#222222]">{waste.date}</span>
+                        {waste.created_by_user_name && (
+                          <>
+                            <span className="text-xs text-slate-500">•</span>
+                            <span className="text-xs text-[#222222]">
+                              👤 {waste.created_by_user_name}
+                            </span>
+                          </>
+                        )}
+                        {waste.is_undone && (
+                          <>
+                            <span className="text-xs text-slate-500">•</span>
+                            <span className="text-xs text-yellow-400">
+                              (Geri Alındı)
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      {waste.description && (
+                        <div className="text-xs text-[#222222]">
+                          {waste.description}
+                        </div>
+                      )}
+                      {waste.purchase_id && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          Alım Kaydı: #{waste.purchase_id}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {waste.log_id && canUndoWaste(waste) && (
+                        <button
+                          onClick={() => handleUndoWaste(waste.log_id!, waste.id)}
                           className="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors whitespace-nowrap text-white"
                         >
                           Geri Al
