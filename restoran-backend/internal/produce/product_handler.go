@@ -1,6 +1,7 @@
 package produce
 
 import (
+	"fmt"
 	"strings"
 
 	"restoran-backend/internal/database"
@@ -65,10 +66,16 @@ func CreateProduceProductHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Name ve unit zorunlu")
 		}
 
+		// Ürün adı unique kontrolü (tüm ürünler arasında)
+		var existingProductByName models.Product
+		if err := database.DB.Where("name = ?", body.Name).First(&existingProductByName).Error; err == nil {
+			return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("Bu ürün adı zaten kullanılıyor: %s", body.Name))
+		}
+
 		// Stok kodu unique kontrolü (boş değilse)
 		if body.StockCode != "" {
-			var existingProduct models.Product
-			if err := database.DB.Where("stock_code = ?", body.StockCode).First(&existingProduct).Error; err == nil {
+			var existingProductByCode models.Product
+			if err := database.DB.Where("stock_code = ?", body.StockCode).First(&existingProductByCode).Error; err == nil {
 				return fiber.NewError(fiber.StatusBadRequest, "Bu stok kodu zaten kullanılıyor")
 			}
 		}
@@ -81,7 +88,8 @@ func CreateProduceProductHandler() fiber.Handler {
 		}
 
 		if err := database.DB.Create(&p).Error; err != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, "Ürün oluşturulamadı")
+			// Daha detaylı hata mesajı
+			return fiber.NewError(fiber.StatusInternalServerError, fmt.Sprintf("Ürün oluşturulamadı: %v", err))
 		}
 
 		return c.Status(fiber.StatusCreated).JSON(ProduceProductResponse{

@@ -125,7 +125,7 @@ export const StockPage: React.FC = () => {
 
   const fetchProducts = async () => {
     try {
-      const res = await apiClient.get("/products");
+      const res = await apiClient.get("/products", { params: { is_center_product: "true" } });
       setProducts(res.data);
       
       // Eğer stockItems boşsa, tüm ürünleri ekle

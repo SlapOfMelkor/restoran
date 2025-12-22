@@ -87,10 +87,10 @@ func CreateStockEntryHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Tarih formatı 'YYYY-MM-DD' olmalı")
 		}
 
-		// Ürün kontrolü
+		// Ürün kontrolü (sadece IsCenterProduct = true olanlar)
 		var product models.Product
-		if err := database.DB.First(&product, "id = ?", body.ProductID).Error; err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, "Ürün bulunamadı")
+		if err := database.DB.Where("id = ? AND is_center_product = ?", body.ProductID, true).First(&product).Error; err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Ürün bulunamadı veya manav ürünü")
 		}
 
 		// Mevcut stok bilgisini hesapla (GetCurrentStockHandler mantığı ile aynı)
@@ -240,9 +240,9 @@ func GetCurrentStockHandler() fiber.Handler {
 			return err
 		}
 
-		// Her ürün için mevcut stoku hesapla
+		// Her ürün için mevcut stoku hesapla (sadece IsCenterProduct = true olanlar)
 		var products []models.Product
-		if err := database.DB.Find(&products).Error; err != nil {
+		if err := database.DB.Where("is_center_product = ?", true).Find(&products).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler listelenemedi")
 		}
 
@@ -370,8 +370,9 @@ func GetMonthlyStockUsageHandler() fiber.Handler {
 		// Ay içindeki sevkiyatlar (stoka kaydedilmiş olanlar)
 		// Ay sonundaki stok (ayın son günündeki veya sonrasındaki en son stok girişi)
 
+		// Sadece IsCenterProduct = true olan ürünleri listele
 		var products []models.Product
-		if err := database.DB.Find(&products).Error; err != nil {
+		if err := database.DB.Where("is_center_product = ?", true).Find(&products).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler listelenemedi")
 		}
 

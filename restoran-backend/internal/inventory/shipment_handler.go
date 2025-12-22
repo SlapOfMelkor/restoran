@@ -123,9 +123,9 @@ func CreateShipmentHandler() fiber.Handler {
 					}
 				}
 			} else {
-				// Mevcut ürünü kullan
-				if err := database.DB.First(&product, "id = ?", itemReq.ProductID).Error; err != nil {
-					return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("Ürün bulunamadı: %d", itemReq.ProductID))
+				// Mevcut ürünü kullan (sadece IsCenterProduct = true olanlar)
+				if err := database.DB.Where("id = ? AND is_center_product = ?", itemReq.ProductID, true).First(&product).Error; err != nil {
+					return fiber.NewError(fiber.StatusBadRequest, fmt.Sprintf("Ürün bulunamadı veya manav ürünü: %d", itemReq.ProductID))
 				}
 			}
 

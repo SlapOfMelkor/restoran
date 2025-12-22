@@ -165,10 +165,10 @@ func CreateCenterShipmentHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Tarih formatı 'YYYY-MM-DD' olmalı")
 		}
 
-		// Ürün var mı?
+		// Ürün var mı? (sadece IsCenterProduct = true olanlar)
 		var product models.Product
-		if err := database.DB.First(&product, "id = ?", body.ProductID).Error; err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, "Ürün bulunamadı")
+		if err := database.DB.Where("id = ? AND is_center_product = ?", body.ProductID, true).First(&product).Error; err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Ürün bulunamadı veya manav ürünü")
 		}
 
 		totalPrice := body.Quantity * body.UnitPrice
@@ -316,10 +316,10 @@ func CreateStockSnapshotHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Tarih formatı 'YYYY-MM-DD' olmalı")
 		}
 
-		// ürün kontrol
+		// ürün kontrol (sadece IsCenterProduct = true olanlar)
 		var product models.Product
-		if err := database.DB.First(&product, "id = ?", body.ProductID).Error; err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, "Ürün bulunamadı")
+		if err := database.DB.Where("id = ? AND is_center_product = ?", body.ProductID, true).First(&product).Error; err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Ürün bulunamadı veya manav ürünü")
 		}
 
 		ss := models.StockSnapshot{
@@ -526,7 +526,7 @@ func MonthlyStockReportHandler() fiber.Handler {
 
 		var products []models.Product
 		if len(ids) > 0 {
-			if err := database.DB.Where("id IN ?", ids).Find(&products).Error; err != nil {
+			if err := database.DB.Where("id IN ? AND is_center_product = ?", ids, true).Find(&products).Error; err != nil {
 				return fiber.NewError(fiber.StatusInternalServerError, "Ürünler yüklenemedi")
 			}
 		}

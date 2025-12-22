@@ -241,9 +241,9 @@ func matchProduct(productName string, stockCode string) (*models.Product, error)
 	
 	normalizedProductName := normalize(productName)
 	
-	// Tüm ürünleri yükle ve tam eşleşme ara
+	// Tüm ürünleri yükle ve tam eşleşme ara (sadece IsCenterProduct = true olanlar)
 	var products []models.Product
-	if err := database.DB.Find(&products).Error; err != nil {
+	if err := database.DB.Where("is_center_product = ?", true).Find(&products).Error; err != nil {
 		return nil, err
 	}
 	
