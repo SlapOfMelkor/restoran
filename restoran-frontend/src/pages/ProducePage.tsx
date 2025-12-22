@@ -47,6 +47,18 @@ interface ProducePaymentWithLog extends ProducePayment {
   is_undone?: boolean;
 }
 
+interface ProduceWaste {
+  id: number;
+  branch_id: number;
+  product_id: number;
+  product_name: string;
+  purchase_id?: number | null;
+  quantity: number;
+  date: string;
+  description: string;
+  created_at: string;
+}
+
 interface AuditLog {
   id: number;
   created_at: string;
@@ -78,6 +90,7 @@ export const ProducePage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showPurchaseForm, setShowPurchaseForm] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [showWasteForm, setShowWasteForm] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [showPurchasesModal, setShowPurchasesModal] = useState(false);
   const [showPaymentsModal, setShowPaymentsModal] = useState(false);
@@ -96,6 +109,13 @@ export const ProducePage: React.FC = () => {
   });
   const [paymentFormData, setPaymentFormData] = useState({
     amount: "",
+    date: new Date().toISOString().split("T")[0],
+    description: "",
+  });
+  const [wasteFormData, setWasteFormData] = useState({
+    product_id: "",
+    purchase_id: "",
+    quantity: "",
     date: new Date().toISOString().split("T")[0],
     description: "",
   });
@@ -311,6 +331,49 @@ export const ProducePage: React.FC = () => {
     }
   };
 
+  const handleWasteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const quantityNum = parseFloat(wasteFormData.quantity);
+    
+    if (!wasteFormData.product_id || !wasteFormData.quantity || isNaN(quantityNum) || quantityNum <= 0) {
+      alert("Lütfen ürün seçin ve geçerli bir miktar girin");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload: any = {
+        product_id: parseInt(wasteFormData.product_id),
+        quantity: quantityNum,
+        date: wasteFormData.date,
+        description: wasteFormData.description,
+      };
+
+      if (wasteFormData.purchase_id && wasteFormData.purchase_id !== "") {
+        payload.purchase_id = parseInt(wasteFormData.purchase_id);
+      }
+
+      if (user?.role === "super_admin" && selectedBranchId) {
+        payload.branch_id = selectedBranchId;
+      }
+
+      await apiClient.post("/produce-waste", payload);
+      alert("Zayiat kaydı başarıyla eklendi");
+      setWasteFormData({
+        product_id: "",
+        purchase_id: "",
+        quantity: "",
+        date: new Date().toISOString().split("T")[0],
+        description: "",
+      });
+      setShowWasteForm(false);
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Zayiat kaydı eklenemedi");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleUndoPurchase = async (logId: number, _purchaseId: number) => {
     if (!confirm("Bu alım kaydını geri almak istediğinize emin misiniz?")) {
       return;
@@ -473,6 +536,12 @@ export const ProducePage: React.FC = () => {
             className="px-4 py-2 rounded-lg text-sm transition-colors bg-green-600 hover:bg-green-700 text-white"
           >
             Ödeme Ekle
+          </button>
+          <button
+            onClick={() => setShowWasteForm(true)}
+            className="px-4 py-2 rounded-lg text-sm transition-colors bg-red-600 hover:bg-red-700 text-white"
+          >
+            Zayiat Ekle
           </button>
         </div>
       </div>
@@ -745,6 +814,154 @@ export const ProducePage: React.FC = () => {
         </form>
       </Modal>
 
+      {/* Zayiat Formu */}
+      <Modal
+        isOpen={showWasteForm}
+        onClose={() => {
+          setShowWasteForm(false);
+          setWasteFormData({
+            product_id: "",
+            purchase_id: "",
+            quantity: "",
+            date: new Date().toISOString().split("T")[0],
+            description: "",
+          });
+        }}
+        title="Yeni Zayiat Kaydı"
+        maxWidth="md"
+      >
+        <form onSubmit={handleWasteSubmit} className="space-y-3">
+          <div>
+            <label className="block text-xs text-[#555555] mb-1">
+              Ürün
+            </label>
+            <select
+              value={wasteFormData.product_id}
+              onChange={(e) =>
+                setWasteFormData({
+                  ...wasteFormData,
+                  product_id: e.target.value,
+                })
+              }
+              className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+              required
+            >
+              <option value="">Ürün seçin...</option>
+              {products.map((prod) => (
+                <option key={prod.id} value={prod.id}>
+                  {prod.name} ({prod.unit})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-[#555555] mb-1">
+              Alım Kaydı (Opsiyonel)
+            </label>
+            <select
+              value={wasteFormData.purchase_id}
+              onChange={(e) =>
+                setWasteFormData({
+                  ...wasteFormData,
+                  purchase_id: e.target.value,
+                })
+              }
+              className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+              disabled={!wasteFormData.product_id}
+            >
+              <option value="">{wasteFormData.product_id ? "Alım kaydı seçin (opsiyonel)..." : "Önce ürün seçin"}</option>
+              {wasteFormData.product_id && purchases
+                .filter((p) => !p.is_undone && p.product_id === parseInt(wasteFormData.product_id))
+                .map((purchase) => (
+                  <option key={purchase.id} value={purchase.id}>
+                    {purchase.product_name} - {purchase.quantity} {purchase.product_unit} - {purchase.date} ({purchase.total_amount.toFixed(2)} TL)
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-[#555555] mb-1">
+                Miktar
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={wasteFormData.quantity}
+                onChange={(e) =>
+                  setWasteFormData({
+                    ...wasteFormData,
+                    quantity: e.target.value,
+                  })
+                }
+                className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                placeholder="0.00"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-[#555555] mb-1">
+                Tarih
+              </label>
+              <input
+                type="date"
+                value={wasteFormData.date}
+                onChange={(e) =>
+                  setWasteFormData({
+                    ...wasteFormData,
+                    date: e.target.value,
+                  })
+                }
+                className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                required
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-[#555555] mb-1">
+              Açıklama (Opsiyonel)
+            </label>
+            <input
+              type="text"
+              value={wasteFormData.description}
+              onChange={(e) =>
+                setWasteFormData({
+                  ...wasteFormData,
+                  description: e.target.value,
+                })
+              }
+              className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+              placeholder="Örn: çürük çıktı, bozuldu"
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white"
+            >
+              {submitting ? "Ekleniyor..." : "Ekle"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowWasteForm(false);
+                setWasteFormData({
+                  product_id: "",
+                  purchase_id: "",
+                  quantity: "",
+                  date: new Date().toISOString().split("T")[0],
+                  description: "",
+                });
+              }}
+              className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+            >
+              İptal
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Ürün Yönetimi Modal */}
       <Modal
