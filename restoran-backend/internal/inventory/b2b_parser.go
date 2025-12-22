@@ -91,17 +91,29 @@ func ParseB2BOrderURL(url string) (*ParsePDFResponse, error) {
 			tableContent = tbodyMatch[1] // tbody içeriğini kullan
 		}
 		
-		// Satırları bul: <tr>...</tr> (sırayla, greedy olmayan match ile)
-		rowRe := regexp.MustCompile(`<tr[^>]*>([\s\S]*?)</tr>`)
-		rows := rowRe.FindAllStringSubmatch(tableContent, -1)
+		// Satırları manuel olarak sırayla bul (sıra korunması için)
+		// Her <tr> tag'ini bulup işliyoruz, regex'in sırasını koruyoruz
+		rowRe := regexp.MustCompile(`<tr[^>]*>`)
+		rowEndRe := regexp.MustCompile(`</tr>`)
 		
-		// Satırları işle (başlık satırlarını içerik kontrolü ile atla)
-		for _, rowMatch := range rows {
-			if len(rowMatch) < 2 {
+		// Satır başlangıç pozisyonlarını bul
+		rowStarts := rowRe.FindAllStringIndex(tableContent, -1)
+		rowEnds := rowEndRe.FindAllStringIndex(tableContent, -1)
+		
+		if len(rowStarts) == 0 || len(rowEnds) == 0 || len(rowStarts) != len(rowEnds) {
+			continue // Satırlar eşleşmiyor
+		}
+		
+		// Her satırı sırayla işle
+		for i := 0; i < len(rowStarts); i++ {
+			start := rowStarts[i][1] // <tr> tag'inin bitiş pozisyonu
+			end := rowEnds[i][0]     // </tr> tag'inin başlangıç pozisyonu
+			
+			if start >= end {
 				continue
 			}
 			
-			rowContent := rowMatch[1]
+			rowContent := tableContent[start:end]
 			
 			// Başlık satırını atla (Stok Kodu, Ürün, Birim Fiyat gibi kelimeler içeriyorsa)
 			if strings.Contains(rowContent, "<th") || 
