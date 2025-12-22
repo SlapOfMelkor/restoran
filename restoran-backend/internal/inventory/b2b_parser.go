@@ -5,12 +5,8 @@ import (
 	"io"
 	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
-
-	"restoran-backend/internal/database"
-	"restoran-backend/internal/models"
 )
 
 // ParseB2BOrderURL: B2B sisteminden sipariş bilgilerini çeker
