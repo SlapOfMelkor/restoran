@@ -370,6 +370,12 @@ export const ShipmentsPage: React.FC = () => {
       return;
     }
 
+    // Super admin için branch_id kontrolü
+    if (user?.role === "super_admin" && !selectedBranchId) {
+      alert("Lütfen bir şube seçin");
+      return;
+    }
+
     // Tüm ürünleri (eşleşen ve eşleşmeyen) items'a çevir
     // Eşleşmeyen ürünler için product_id = 0 gönder, backend otomatik oluşturacak
     const itemsToSend = parsedProducts.map((p: any) => ({
@@ -383,11 +389,23 @@ export const ShipmentsPage: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const response = await apiClient.post("/shipments", {
+      const payload: any = {
         date: formData.date,
         note: formData.note || `B2B Sipariş - ${parsedProducts[0]?.order_number || ""}`,
         items: itemsToSend,
-      });
+      };
+
+      // Super admin ise branch_id ekle (zorunlu)
+      if (user?.role === "super_admin") {
+        if (!selectedBranchId) {
+          alert("Lütfen bir şube seçin");
+          setSubmitting(false);
+          return;
+        }
+        payload.branch_id = selectedBranchId;
+      }
+
+      const response = await apiClient.post("/shipments", payload);
 
       alert("Sevkiyat başarıyla oluşturuldu!");
       setParsedProducts([]);

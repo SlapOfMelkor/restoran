@@ -76,7 +76,7 @@ coverage/
 .turbo/
 .next/
 .nuxt/
-
+RESET_DATABASE.md
 # Logs
 logs/
 *.log

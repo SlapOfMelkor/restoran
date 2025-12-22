@@ -129,8 +129,14 @@ func CreateShipmentHandler() fiber.Handler {
 			totalPrice := itemReq.Quantity * itemReq.UnitPrice
 			totalAmount += totalPrice
 
+			// Yeni oluşturulan ürün için product.ID kullan, aksi halde itemReq.ProductID kullan
+			productID := itemReq.ProductID
+			if itemReq.ProductID == 0 {
+				productID = product.ID // Yeni oluşturulan ürünün ID'sini kullan
+			}
+
 			shipmentItems = append(shipmentItems, models.ShipmentItem{
-				ProductID:  itemReq.ProductID,
+				ProductID:  productID,
 				Quantity:   itemReq.Quantity,
 				UnitPrice:  itemReq.UnitPrice,
 				TotalPrice: totalPrice,
