@@ -60,7 +60,7 @@ export const CenterShipmentsPage: React.FC = () => {
 
   const fetchProducts = async () => {
     try {
-      const res = await apiClient.get("/products");
+      const res = await apiClient.get("/products", { params: { is_center_product: "true" } });
       setProducts(res.data);
     } catch (err) {
       console.error("Ürünler yüklenemedi:", err);
