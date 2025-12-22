@@ -61,7 +61,7 @@ func ParseB2BOrderURL(url string) (*ParsePDFResponse, error) {
 	}
 	
 	// Tablo içeriğini bul
-	// Tablo formatı: <table> içinde <tr> satırları
+	// Tablo formatı: <table> içinde <tr> satırları (veya <tbody> içinde)
 	tableRe := regexp.MustCompile(`<table[^>]*>([\s\S]*?)</table>`)
 	tableMatches := tableRe.FindAllStringSubmatch(htmlContent, -1)
 	
@@ -80,20 +80,32 @@ func ParseB2BOrderURL(url string) (*ParsePDFResponse, error) {
 			continue
 		}
 		
-		// Satırları bul: <tr>...</tr>
+		// Thead içindeki satırları atla (başlık satırları)
+		theadRe := regexp.MustCompile(`<thead[^>]*>([\s\S]*?)</thead>`)
+		tableContent = theadRe.ReplaceAllString(tableContent, "")
+		
+		// Tbody içinde satırlar varsa onu kullan, yoksa direkt tablo içindeki satırları al
+		tbodyRe := regexp.MustCompile(`<tbody[^>]*>([\s\S]*?)</tbody>`)
+		tbodyMatch := tbodyRe.FindStringSubmatch(tableContent)
+		if len(tbodyMatch) > 1 {
+			tableContent = tbodyMatch[1] // tbody içeriğini kullan
+		}
+		
+		// Satırları bul: <tr>...</tr> (sırayla, greedy olmayan match ile)
 		rowRe := regexp.MustCompile(`<tr[^>]*>([\s\S]*?)</tr>`)
 		rows := rowRe.FindAllStringSubmatch(tableContent, -1)
 		
-		// İlk satır başlık, sonrakiler veri
-		for i, rowMatch := range rows {
+		// Satırları işle (başlık satırlarını içerik kontrolü ile atla)
+		for _, rowMatch := range rows {
 			if len(rowMatch) < 2 {
 				continue
 			}
 			
 			rowContent := rowMatch[1]
 			
-			// Başlık satırını atla
-			if i == 0 {
+			// Başlık satırını atla (Stok Kodu, Ürün, Birim Fiyat gibi kelimeler içeriyorsa)
+			if strings.Contains(rowContent, "<th") || 
+			   (strings.Contains(rowContent, "Stok Kodu") && strings.Contains(rowContent, "Ürün") && strings.Contains(rowContent, "Birim Fiyat")) {
 				continue
 			}
 			
