@@ -251,6 +251,7 @@ func ListShipmentsHandler() fiber.Handler {
 					ID:               item.ID,
 					ProductID:        item.ProductID,
 					ProductName:      item.Product.Name,
+					StockCode:        item.Product.StockCode,
 					Quantity:         item.Quantity,
 					UnitPrice:        item.UnitPrice,        // KDV'siz birim fiyat
 					UnitPriceWithVAT: item.UnitPriceWithVAT, // KDV'li birim fiyat
