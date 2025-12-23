@@ -71,6 +71,8 @@ export const ShipmentsPage: React.FC = () => {
   const [b2bUrl, setB2bUrl] = useState("");
   const [parsedProducts, setParsedProducts] = useState<any[]>([]);
   const [parsingUrl, setParsingUrl] = useState(false);
+  const [dateFilter, setDateFilter] = useState<string>("");
+  const [productFilter, setProductFilter] = useState<string>("");
 
   // localStorage'dan draft'ı yükle (ürünler yüklendikten sonra)
   useEffect(() => {
@@ -286,7 +288,7 @@ export const ShipmentsPage: React.FC = () => {
       });
       setShipmentItems([]);
       localStorage.removeItem(STORAGE_KEY);
-      setShowForm(false);
+      setShowForm(false); // Modal'ı kapat
       fetchShipments();
     } catch (err: any) {
       alert(err.response?.data?.error || "Sevkiyat kaydedilemedi");
@@ -421,7 +423,6 @@ export const ShipmentsPage: React.FC = () => {
       setParsedProducts([]);
       setB2bUrl("");
       setShowUrlInput(false);
-      setShowForm(false);
       setFormData({
         date: new Date().toISOString().split("T")[0],
         note: "",
@@ -438,37 +439,37 @@ export const ShipmentsPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-[#222222]">
-          Ürün sevkiyatlarını yönetin ve stoka aktarın
-        </p>
-        <div className="flex gap-2">
+      <div className="flex items-center justify-center py-8">
+        <div className="flex gap-4">
           <button
             onClick={() => {
-              setShowUrlInput(!showUrlInput);
-              if (showUrlInput) {
-                setParsedProducts([]);
-                setB2bUrl("");
-              }
+              setShowUrlInput(true);
             }}
-            className="px-4 py-2 rounded-lg text-sm transition-colors bg-blue-600 hover:bg-blue-700 text-white"
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl"
           >
-            {showUrlInput ? "URL İşlemini İptal" : "B2B Sipariş Linkinden Yükle"}
+            B2B Sipariş Linkinden Yükle
           </button>
           <button
-            onClick={() => setShowForm(!showForm)}
-            className="px-4 py-2 rounded-lg text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
+            onClick={() => setShowForm(true)}
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white shadow-lg hover:shadow-xl"
           >
-            {showForm ? "Formu Gizle" : "Yeni Sevkiyat"}
+            Yeni Sevkiyat
           </button>
         </div>
       </div>
 
-      {/* B2B URL Input */}
-      {showUrlInput && (
-        <div className="bg-white/80 rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">B2B Sipariş Linkinden Yükle</h2>
-          
+          {/* B2B URL Input Modal */}
+      <Modal
+        isOpen={showUrlInput}
+        onClose={() => {
+          setShowUrlInput(false);
+          setParsedProducts([]);
+          setB2bUrl("");
+        }}
+        title="B2B Sipariş Linkinden Yükle"
+        maxWidth="lg"
+      >
+        <div className="space-y-4">
           <div className="mb-4">
             <label className="block text-xs text-[#555555] mb-2">
               Sipariş Detay URL'ini Girin
@@ -486,7 +487,7 @@ export const ShipmentsPage: React.FC = () => {
               disabled={parsingUrl || !b2bUrl.trim()}
               className="mt-2 px-4 py-2 rounded-lg text-sm transition-colors bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white"
             >
-              {parsingUrl ? "Parse Ediliyor..." : "Parse Et"}
+              {parsingUrl ? "Bilgiler Getiriliyor..." : "Bilgileri Getir"}
             </button>
           </div>
 
@@ -544,12 +545,24 @@ export const ShipmentsPage: React.FC = () => {
             </div>
           )}
         </div>
-      )}
+      </Modal>
 
-      {showForm && (
-        <div className="bg-white/80 rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">Yeni Sevkiyat Ekle</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Yeni Sevkiyat Form Modal */}
+      <Modal
+        isOpen={showForm}
+        onClose={() => {
+          setShowForm(false);
+          setFormData({
+            date: new Date().toISOString().split("T")[0],
+            note: "",
+          });
+          setShipmentItems([]);
+          localStorage.removeItem(STORAGE_KEY);
+        }}
+        title="Yeni Sevkiyat Ekle"
+        maxWidth="lg"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-[#222222] mb-1">Tarih</label>
@@ -699,17 +712,39 @@ export const ShipmentsPage: React.FC = () => {
             </div>
           </form>
         </div>
-      )}
+      </Modal>
 
       <div className="bg-white/80 rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-        <h2 className="text-sm font-semibold mb-3">Sevkiyat Listesi</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold">Sevkiyat Listesi</h2>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              placeholder="Tarihe göre filtrele"
+              className="bg-white border border-[#E5E5E5] rounded px-3 py-1.5 text-xs text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+            />
+            {dateFilter && (
+              <button
+                onClick={() => setDateFilter("")}
+                className="px-2 py-1.5 bg-slate-500 hover:bg-slate-600 rounded text-xs text-white transition-colors"
+              >
+                Temizle
+              </button>
+            )}
+          </div>
+        </div>
         {loading ? (
           <p className="text-xs text-[#222222]">Yükleniyor...</p>
         ) : shipments.length === 0 ? (
           <p className="text-xs text-[#222222]">Henüz sevkiyat kaydı yok</p>
         ) : (
           <div className="space-y-2">
-            {shipments.map((shipment) => (
+            {(dateFilter 
+              ? shipments.filter(s => s.date === dateFilter)
+              : shipments
+            ).map((shipment) => (
               <div
                 key={shipment.id}
                 className={`p-3 bg-white rounded-xl border ${
@@ -784,7 +819,10 @@ export const ShipmentsPage: React.FC = () => {
       {/* Sevkiyat Detay Modal */}
       <Modal
         isOpen={!!selectedShipmentForDetails}
-        onClose={() => setSelectedShipmentForDetails(null)}
+        onClose={() => {
+          setSelectedShipmentForDetails(null);
+          setProductFilter(""); // Modal kapanırken filtreyi temizle
+        }}
         title={`Sevkiyat Detayları - ${selectedShipmentForDetails?.date || ""}`}
         maxWidth="lg"
       >
@@ -834,40 +872,64 @@ export const ShipmentsPage: React.FC = () => {
 
             {/* Ürün Detayları */}
             <div>
-              <h3 className="text-sm font-semibold mb-3">Ürün Detayları</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">Ürün Detayları</h3>
+                <input
+                  type="text"
+                  value={productFilter}
+                  onChange={(e) => setProductFilter(e.target.value)}
+                  placeholder="Ürün adına göre ara..."
+                  className="bg-white border border-[#E5E5E5] rounded px-3 py-1.5 text-xs text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F] w-64"
+                />
+              </div>
               <div className="space-y-2">
-                {selectedShipmentForDetails.items.map((item, idx) => {
-                  const vatAmount = item.total_price - (item.unit_price * item.quantity);
-                  return (
-                    <div
-                      key={idx}
-                      className="p-3 bg-white rounded-lg border border-[#E5E5E5]"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">{item.product_name}</span>
-                        <span className="text-sm font-semibold text-[#8F1A9F]">
-                          {item.total_price.toFixed(2)} TL
-                        </span>
-                      </div>
-                      <div className="text-xs text-[#555555] space-y-1">
-                        <div className="flex justify-between">
-                          <span>Birim Fiyat (KDV'li):</span>
-                          <span>
-                            {(item.unit_price_with_vat || item.unit_price || 0).toFixed(2)} TL
+                {(() => {
+                  const filteredItems = selectedShipmentForDetails.items.filter(item => 
+                    !productFilter || 
+                    item.product_name.toLowerCase().includes(productFilter.toLowerCase())
+                  );
+                  
+                  if (filteredItems.length === 0) {
+                    return (
+                      <p className="text-xs text-[#222222] text-center py-4">
+                        Filtreleme kriterlerine uygun ürün bulunamadı.
+                      </p>
+                    );
+                  }
+                  
+                  return filteredItems.map((item, idx) => {
+                    const vatAmount = item.total_price - (item.unit_price * item.quantity);
+                    return (
+                      <div
+                        key={idx}
+                        className="p-3 bg-white rounded-lg border border-[#E5E5E5]"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">{item.product_name}</span>
+                          <span className="text-sm font-semibold text-[#8F1A9F]">
+                            {item.total_price.toFixed(2)} TL
                           </span>
                         </div>
-                        <div className="flex justify-between">
-                          <span>Miktar:</span>
-                          <span>{item.quantity}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>KDV Tutarı:</span>
-                          <span className="text-red-600">{vatAmount.toFixed(2)} TL</span>
+                        <div className="text-xs text-[#555555] space-y-1">
+                          <div className="flex justify-between">
+                            <span>Birim Fiyat (KDV'li):</span>
+                            <span>
+                              {(item.unit_price_with_vat || item.unit_price || 0).toFixed(2)} TL
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Miktar:</span>
+                            <span>{item.quantity}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>KDV Tutarı:</span>
+                            <span className="text-red-600">{vatAmount.toFixed(2)} TL</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
             </div>
           </div>
