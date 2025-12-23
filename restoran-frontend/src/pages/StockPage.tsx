@@ -87,8 +87,9 @@ export const StockPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [showReport, setShowReport] = useState(false);
-  const [showEntries, setShowEntries] = useState(true);
+  const [showEntriesHistory, setShowEntriesHistory] = useState(false);
   const [showCurrentStock, setShowCurrentStock] = useState(false);
+  const [entriesHistoryDateFilter, setEntriesHistoryDateFilter] = useState<string>("");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
@@ -408,34 +409,34 @@ export const StockPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-[#222222]">
-          Stok sayımları, mevcut durum ve aylık harcama takibi
-        </p>
-        <div className="flex gap-2">
+      <div className="flex items-center justify-center py-8">
+        <div className="flex gap-4">
           <button
             onClick={() => setShowForm(true)}
-            className="px-4 py-2 rounded-lg text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white shadow-lg hover:shadow-xl"
           >
             Stok Sayımı
           </button>
           <button
             onClick={() => setShowCurrentStock(true)}
-            className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl"
           >
             Mevcut Stok Durumu
           </button>
           <button
             onClick={() => setShowReport(true)}
-            className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl"
           >
             Aylık Harcama
           </button>
           <button
-            onClick={() => setShowEntries(!showEntries)}
-            className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
+            onClick={() => {
+              fetchStockEntries();
+              setShowEntriesHistory(true);
+            }}
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl"
           >
-            {showEntries ? "Girişleri Gizle" : "Stok Girişleri"}
+            Geçmiş Girişleri Görüntüle
           </button>
         </div>
       </div>
@@ -647,15 +648,44 @@ export const StockPage: React.FC = () => {
         </form>
       </Modal>
 
-      {/* Stok Girişleri */}
-      {showEntries && (
-        <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">Stok Girişleri</h2>
+      {/* Geçmiş Stok Girişleri Modal */}
+      <Modal
+        isOpen={showEntriesHistory}
+        onClose={() => {
+          setShowEntriesHistory(false);
+          setEntriesHistoryDateFilter("");
+        }}
+        title="Geçmiş Stok Girişleri"
+        maxWidth="xl"
+      >
+        <div className="space-y-4">
+          {/* Tarih Filtresi */}
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={entriesHistoryDateFilter}
+              onChange={(e) => setEntriesHistoryDateFilter(e.target.value)}
+              className="bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+            />
+            {entriesHistoryDateFilter && (
+              <button
+                onClick={() => setEntriesHistoryDateFilter("")}
+                className="px-3 py-2 bg-slate-500 hover:bg-slate-600 rounded text-sm text-white transition-colors"
+              >
+                Temizle
+              </button>
+            )}
+          </div>
+
+          {/* Stok Girişleri Listesi */}
           {stockEntries.length === 0 ? (
-            <p className="text-xs text-[#222222]">Henüz stok girişi yok</p>
+            <p className="text-xs text-[#222222] text-center py-8">Henüz stok girişi yok</p>
           ) : (
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {groupStockEntries(stockEntries).map((group) => (
+              {(entriesHistoryDateFilter
+                ? groupStockEntries(stockEntries.filter(entry => entry.date === entriesHistoryDateFilter))
+                : groupStockEntries(stockEntries)
+              ).map((group) => (
                 <div
                   key={group.id}
                   className={`bg-white rounded-xl border ${
@@ -783,7 +813,7 @@ export const StockPage: React.FC = () => {
             </div>
           )}
         </div>
-      )}
+      </Modal>
 
       {/* Aylık Harcama Raporu Modal */}
       <Modal
