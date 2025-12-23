@@ -97,11 +97,10 @@ func DownloadProductImage(stockCode string, savePath string) (string, error) {
 		}
 		src := match[1]
 		
-		// Placeholder, icon, logo, data URI gibi olmayan gerçek fotoğraf URL'ini bul
+		// Placeholder, icon, logo gibi olmayan gerçek fotoğraf URL'ini bul
 		if strings.Contains(strings.ToLower(src), "placeholder") || 
 		   strings.Contains(strings.ToLower(src), "icon") || 
 		   strings.Contains(strings.ToLower(src), "logo") ||
-		   strings.Contains(src, "data:image") ||
 		   strings.Contains(strings.ToLower(src), "avatar") {
 			continue
 		}

@@ -25,6 +25,7 @@ type StockEntryResponse struct {
 	BranchID    uint    `json:"branch_id"`
 	ProductID   uint    `json:"product_id"`
 	ProductName string  `json:"product_name"`
+	StockCode   string  `json:"stock_code"`
 	Date        string  `json:"date"`
 	Quantity    float64 `json:"quantity"`
 	Note        string  `json:"note"`
@@ -187,6 +188,7 @@ func CreateStockEntryHandler() fiber.Handler {
 			BranchID:    entry.BranchID,
 			ProductID:   entry.ProductID,
 			ProductName: product.Name,
+			StockCode:   product.StockCode,
 			Date:        entry.Date.Format("2006-01-02"),
 			Quantity:    entry.Quantity,
 			Note:        entry.Note,
@@ -219,6 +221,7 @@ func ListStockEntriesHandler() fiber.Handler {
 				BranchID:    e.BranchID,
 				ProductID:   e.ProductID,
 				ProductName: e.Product.Name,
+				StockCode:   e.Product.StockCode,
 				Date:        e.Date.Format("2006-01-02"),
 				Quantity:    e.Quantity,
 				Note:        e.Note,
@@ -249,6 +252,7 @@ func GetCurrentStockHandler() fiber.Handler {
 		type CurrentStock struct {
 			ProductID   uint    `json:"product_id"`
 			ProductName string  `json:"product_name"`
+			StockCode   string  `json:"stock_code"`
 			Unit        string  `json:"unit"`
 			Quantity    float64 `json:"quantity"`
 			LastUpdate  string  `json:"last_update"`
@@ -329,6 +333,7 @@ func GetCurrentStockHandler() fiber.Handler {
 			currentStocks = append(currentStocks, CurrentStock{
 				ProductID:   product.ID,
 				ProductName: product.Name,
+				StockCode:   product.StockCode,
 				Unit:        product.Unit,
 				Quantity:    totalQuantity,
 				LastUpdate:  lastUpdate,
@@ -379,6 +384,7 @@ func GetMonthlyStockUsageHandler() fiber.Handler {
 		type StockUsageRow struct {
 			ProductID    uint    `json:"product_id"`
 			ProductName  string  `json:"product_name"`
+			StockCode    string  `json:"stock_code"`
 			Unit         string  `json:"unit"`
 			StartQty     float64 `json:"start_qty"`     // ay başı stok
 			IncomingQty  float64 `json:"incoming_qty"`  // ay içi gelen (sevkiyat)
@@ -436,6 +442,7 @@ func GetMonthlyStockUsageHandler() fiber.Handler {
 			rows = append(rows, StockUsageRow{
 				ProductID:   product.ID,
 				ProductName: product.Name,
+				StockCode:   product.StockCode,
 				Unit:        product.Unit,
 				StartQty:    startQty,
 				IncomingQty: incomingQty,

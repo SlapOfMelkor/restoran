@@ -2,11 +2,13 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
 import { Modal } from "../components/Modal";
+import { ProductImage } from "../components/ProductImage";
 
 interface Product {
   id: number;
   name: string;
   unit: string;
+  stock_code?: string;
 }
 
 interface StockEntry {
@@ -14,6 +16,7 @@ interface StockEntry {
   branch_id: number;
   product_id: number;
   product_name: string;
+  stock_code?: string;
   date: string;
   quantity: number;
   note?: string;
@@ -39,6 +42,7 @@ interface StockCountGroup {
 interface CurrentStock {
   product_id: number;
   product_name: string;
+  stock_code?: string;
   unit: string;
   quantity: number;
   last_update: string;
@@ -47,6 +51,7 @@ interface CurrentStock {
 interface StockUsageRow {
   product_id: number;
   product_name: string;
+  stock_code?: string;
   unit: string;
   start_qty: number;
   incoming_qty: number;
@@ -72,6 +77,7 @@ interface AuditLog {
 interface StockEntryItem {
   product_id: number;
   product_name: string;
+  stock_code?: string;
   unit: string;
   quantity: string; // string olarak tutuyoruz input için
 }
@@ -134,6 +140,7 @@ export const StockPage: React.FC = () => {
         const items: StockEntryItem[] = res.data.map((product: Product) => ({
           product_id: product.id,
           product_name: product.name,
+          stock_code: product.stock_code,
           unit: product.unit,
           quantity: "",
         }));
@@ -473,9 +480,9 @@ export const StockPage: React.FC = () => {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-slate-700">
-                    <th className="text-left p-2">Ürün</th>
-                    <th className="text-right p-2">Miktar</th>
-                    <th className="text-right p-2">Son Güncelleme</th>
+                    <th className="text-left p-3">Ürün</th>
+                    <th className="text-right p-3">Miktar</th>
+                    <th className="text-right p-3 hidden sm:table-cell">Son Güncelleme</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -483,20 +490,32 @@ export const StockPage: React.FC = () => {
                     .filter((stock) =>
                       stock.product_name.toLowerCase().includes(currentStockSearchQuery.toLowerCase())
                     )
-                    .map((stock) => (
-                      <tr key={stock.product_id} className="border-b border-slate-800">
-                        <td className="p-2">
-                          <div className="font-medium">{stock.product_name}</div>
-                          <div className="text-[#222222] text-xs">{stock.unit}</div>
-                        </td>
-                        <td className="text-right p-2 font-semibold">
-                          {stock.quantity.toFixed(2)}
-                        </td>
-                        <td className="text-right p-2 text-[#222222]">
-                          {stock.last_update || "Henüz giriş yok"}
-                        </td>
-                      </tr>
-                    ))}
+                    .map((stock) => {
+                      const product = products.find(p => p.id === stock.product_id);
+                      return (
+                        <tr key={stock.product_id} className="border-b border-slate-800">
+                          <td className="p-3">
+                            <div className="flex items-center gap-3">
+                              <ProductImage
+                                stockCode={stock.stock_code || product?.stock_code}
+                                productName={stock.product_name}
+                                size="md"
+                              />
+                              <div>
+                                <div className="font-medium">{stock.product_name}</div>
+                                <div className="text-[#222222] text-xs">{stock.unit}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="text-right p-3 font-semibold">
+                            {stock.quantity.toFixed(2)}
+                          </td>
+                          <td className="text-right p-3 text-[#222222] hidden sm:table-cell">
+                            {stock.last_update || "Henüz giriş yok"}
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
               {currentStockSearchQuery && currentStock.filter((stock) =>
@@ -555,10 +574,10 @@ export const StockPage: React.FC = () => {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-slate-700">
-                      <th className="text-left p-2">Ürün</th>
-                      <th className="text-right p-2">Birim</th>
-                      <th className="text-right p-2">Mevcut Stok</th>
-                      <th className="text-right p-2">Sayım Miktarı</th>
+                      <th className="text-left p-3">Ürün</th>
+                      <th className="text-right p-3 hidden sm:table-cell">Birim</th>
+                      <th className="text-right p-3 hidden md:table-cell">Mevcut Stok</th>
+                      <th className="text-right p-3">Sayım Miktarı</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -572,16 +591,26 @@ export const StockPage: React.FC = () => {
                         );
                         return (
                           <tr key={item.product_id} className="border-b border-slate-800">
-                            <td className="p-2">
-                              <div className="font-medium">{item.product_name}</div>
+                            <td className="p-3">
+                              <div className="flex items-center gap-3">
+                                <ProductImage
+                                  stockCode={item.stock_code}
+                                  productName={item.product_name}
+                                  size="md"
+                                />
+                                <div>
+                                  <div className="font-medium">{item.product_name}</div>
+                                  <div className="text-[#777777] text-xs sm:hidden">{item.unit}</div>
+                                </div>
+                              </div>
                             </td>
-                            <td className="text-right p-2 text-[#777777]">
+                            <td className="text-right p-3 text-[#777777] hidden sm:table-cell">
                               {item.unit}
                             </td>
-                            <td className="text-right p-2 text-[#222222]">
+                            <td className="text-right p-3 text-[#222222] hidden md:table-cell">
                               {currentStockItem ? currentStockItem.quantity.toFixed(2) : "0.00"}
                             </td>
-                            <td className="p-2">
+                            <td className="p-3">
                               <input
                                 type="number"
                                 step="0.01"
@@ -625,6 +654,7 @@ export const StockPage: React.FC = () => {
                 setStockItems(products.map((product) => ({
                   product_id: product.id,
                   product_name: product.name,
+                  stock_code: product.stock_code,
                   unit: product.unit,
                   quantity: "",
                 })));
@@ -754,58 +784,67 @@ export const StockPage: React.FC = () => {
                   {/* Grup Detayları (Expand edildiğinde) */}
                   {expandedGroups.has(group.id) && (
                     <div className="border-t border-slate-700 p-3 space-y-2">
-                      {group.entries.map((entry) => (
-                        <div
-                          key={entry.id}
-                          className={`p-2 bg-slate-900 rounded border ${
-                            entry.is_undone
-                              ? "border-slate-600 opacity-60"
-                              : "border-slate-800"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm font-medium">
-                                  {entry.product_name}
-                                </span>
-                                {entry.is_undone && (
-                                  <>
-                                    <span className="text-xs text-slate-500">•</span>
-                                    <span className="text-xs text-yellow-400">
-                                      (Geri Alındı)
+                      {group.entries.map((entry) => {
+                        const product = products.find(p => p.id === entry.product_id);
+                        const currentStockItem = currentStock.find(
+                          (cs) => cs.product_id === entry.product_id
+                        );
+                        const unit = currentStockItem?.unit || "birim";
+                        return (
+                          <div
+                            key={entry.id}
+                            className={`p-3 bg-slate-900 rounded border ${
+                              entry.is_undone
+                                ? "border-slate-600 opacity-60"
+                                : "border-slate-800"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <ProductImage
+                                  stockCode={entry.stock_code || product?.stock_code}
+                                  productName={entry.product_name}
+                                  size="md"
+                                  className="flex-shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                    <span className="text-sm font-medium">
+                                      {entry.product_name}
                                     </span>
-                                  </>
+                                    {entry.is_undone && (
+                                      <>
+                                        <span className="text-xs text-slate-500">•</span>
+                                        <span className="text-xs text-yellow-400">
+                                          (Geri Alındı)
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-[#222222]">
+                                    {entry.quantity.toFixed(2)} {unit}
+                                  </div>
+                                  {entry.note && (
+                                    <div className="text-xs text-blue-400 mt-1">
+                                      {entry.note}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {entry.log_id && canUndo(entry) && (
+                                  <button
+                                    onClick={() => handleUndo(entry.log_id!, entry.id)}
+                                    className="px-2 py-1 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors whitespace-nowrap"
+                                  >
+                                    Geri Al
+                                  </button>
                                 )}
                               </div>
-                              <div className="text-xs text-[#222222]">
-                                {(() => {
-                                  const currentStockItem = currentStock.find(
-                                    (cs) => cs.product_id === entry.product_id
-                                  );
-                                  const unit = currentStockItem?.unit || "birim";
-                                  return `${entry.quantity.toFixed(2)} ${unit}`;
-                                })()}
-                              </div>
-                              {entry.note && (
-                                <div className="text-xs text-blue-400 mt-1">
-                                  {entry.note}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {entry.log_id && canUndo(entry) && (
-                                <button
-                                  onClick={() => handleUndo(entry.log_id!, entry.id)}
-                                  className="px-2 py-1 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors whitespace-nowrap"
-                                >
-                                  Geri Al
-                                </button>
-                              )}
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -879,11 +918,11 @@ export const StockPage: React.FC = () => {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-slate-700">
-                    <th className="text-left p-2">Ürün</th>
-                    <th className="text-right p-2">Başlangıç</th>
-                    <th className="text-right p-2">Gelen</th>
-                    <th className="text-right p-2">Son</th>
-                    <th className="text-right p-2">Harcanan</th>
+                    <th className="text-left p-3">Ürün</th>
+                    <th className="text-right p-3 hidden md:table-cell">Başlangıç</th>
+                    <th className="text-right p-3 hidden md:table-cell">Gelen</th>
+                    <th className="text-right p-3 hidden lg:table-cell">Son</th>
+                    <th className="text-right p-3">Harcanan</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -891,31 +930,43 @@ export const StockPage: React.FC = () => {
                     .filter((row) =>
                       row.product_name.toLowerCase().includes(monthlyReportSearchQuery.toLowerCase())
                     )
-                    .map((row) => (
-                      <tr
-                        key={row.product_id}
-                        className="border-b border-slate-800"
-                      >
-                        <td className="p-2">
-                          <div className="font-medium">{row.product_name}</div>
-                          <div className="text-[#222222] text-xs">
-                            {row.unit}
-                          </div>
-                        </td>
-                        <td className="text-right p-2">
-                          {row.start_qty.toFixed(2)}
-                        </td>
-                        <td className="text-right p-2">
-                          {row.incoming_qty.toFixed(2)}
-                        </td>
-                        <td className="text-right p-2">
-                          {row.end_qty.toFixed(2)}
-                        </td>
-                        <td className="text-right p-2 text-red-400 font-semibold">
-                          {row.used_qty.toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
+                    .map((row) => {
+                      const product = products.find(p => p.id === row.product_id);
+                      return (
+                        <tr
+                          key={row.product_id}
+                          className="border-b border-slate-800"
+                        >
+                          <td className="p-3">
+                            <div className="flex items-center gap-3">
+                              <ProductImage
+                                stockCode={row.stock_code || product?.stock_code}
+                                productName={row.product_name}
+                                size="md"
+                              />
+                              <div>
+                                <div className="font-medium">{row.product_name}</div>
+                                <div className="text-[#222222] text-xs">
+                                  {row.unit}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="text-right p-3 hidden md:table-cell">
+                            {row.start_qty.toFixed(2)}
+                          </td>
+                          <td className="text-right p-3 hidden md:table-cell">
+                            {row.incoming_qty.toFixed(2)}
+                          </td>
+                          <td className="text-right p-3 hidden lg:table-cell">
+                            {row.end_qty.toFixed(2)}
+                          </td>
+                          <td className="text-right p-3 text-red-400 font-semibold">
+                            {row.used_qty.toFixed(2)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
               {monthlyReportSearchQuery && stockUsage.filter((row) =>

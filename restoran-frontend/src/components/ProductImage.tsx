@@ -31,12 +31,29 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   const initialSrc = getImageUrl(stockCode);
   const [imgSrc, setImgSrc] = useState<string>(initialSrc);
   const hasErrorRef = useRef(false); // Ref kullanarak sync kontrol
+  const retryCountRef = useRef(0); // Retry sayacı
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // stockCode değiştiğinde state'i sıfırla
   useEffect(() => {
     const newSrc = getImageUrl(stockCode);
     setImgSrc(newSrc);
     hasErrorRef.current = false;
+    retryCountRef.current = 0;
+    
+    // Önceki retry timeout'ını temizle
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+    
+    // Cleanup function
+    return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+    };
   }, [stockCode]);
 
   // Boyut class'ları
@@ -47,27 +64,37 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   };
 
   const handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    // Sadece bir kez hata durumuna geç (sonsuz döngüyü önle)
-    if (hasErrorRef.current) {
-      return; // Zaten hata durumundayız, tekrar deneme
-    }
-
     const target = e.target as HTMLImageElement;
     const currentSrc = target.src || imgSrc;
     
-    // Debug: console'a log at
-    console.warn(`ProductImage yükleme hatası - StockCode: ${stockCode}, Src: ${currentSrc}`);
-    
-    // Eğer şu anki src placeholder veya data URI değilse, placeholder'a geç
-    if (!currentSrc.includes("placeholder.jpg") && !currentSrc.includes("data:image")) {
+    // Eğer zaten stock_image.jpg'yi gösteriyorsak, bir şey yapma
+    if (currentSrc.includes("stock_image.jpg")) {
+      return;
+    }
+
+    // Fotoğraf indirme süreci için retry mekanizması
+    // İlk 3 denemede 2 saniye bekle (fotoğraf indirilene kadar zaman tanı)
+    if (retryCountRef.current < 3 && stockCode) {
+      retryCountRef.current += 1;
+      
+      // Debug: console'a log at
+      console.warn(`ProductImage retry (${retryCountRef.current}/3) - StockCode: ${stockCode}`);
+      
+      // 2 saniye bekle ve tekrar dene
+      retryTimeoutRef.current = setTimeout(() => {
+        const originalUrl = getImageUrl(stockCode);
+        setImgSrc(originalUrl + "?retry=" + Date.now()); // Cache bypass için timestamp ekle
+      }, 2000);
+      
+      return;
+    }
+
+    // 3 denemeden sonra hala yüklenemediyse stock_image.jpg'yi göster
+    if (!hasErrorRef.current) {
       hasErrorRef.current = true;
-      const placeholderUrl = "/product-images/placeholder.jpg";
-      setImgSrc(placeholderUrl);
-    } else if (currentSrc.includes("placeholder.jpg") && !currentSrc.includes("data:image")) {
-      // Placeholder da yüklenemezse, gri bir SVG göster (sonsuz döngüyü önle)
-      hasErrorRef.current = true;
-      const fallbackSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23f3f4f6'/%3E%3C/svg%3E";
-      setImgSrc(fallbackSvg);
+      console.warn(`ProductImage fallback to stock_image - StockCode: ${stockCode}`);
+      const stockImageUrl = "/product-images/stock_image.jpg";
+      setImgSrc(stockImageUrl);
     }
   };
 
