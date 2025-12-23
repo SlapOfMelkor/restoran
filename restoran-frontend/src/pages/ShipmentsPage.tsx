@@ -711,8 +711,7 @@ export const ShipmentsPage: React.FC = () => {
               </button>
             </div>
           </form>
-        </div>
-      </Modal>
+        </Modal>
 
       <div className="bg-white/80 rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
