@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
 import { Modal } from "../components/Modal";
+import { ProductImage } from "../components/ProductImage";
 
 interface Product {
   id: number;
@@ -13,6 +14,7 @@ interface Product {
 interface ShipmentItem {
   product_id: number;
   product_name: string;
+  stock_code?: string;
   quantity: number;
   unit_price: number;
   unit_price_with_vat?: number;
@@ -519,7 +521,12 @@ export const ShipmentsPage: React.FC = () => {
                         : "border-yellow-300 bg-yellow-50"
                     }`}
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-3">
+                      <ProductImage
+                        stockCode={p.stock_code}
+                        productName={p.product_name}
+                        size="md"
+                      />
                       <div className="flex-1">
                         <div className="text-sm font-medium">{p.product_name}</div>
                         <div className="text-xs text-[#222222]">
@@ -903,8 +910,15 @@ export const ShipmentsPage: React.FC = () => {
                         key={idx}
                         className="p-3 bg-white rounded-lg border border-[#E5E5E5]"
                       >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium">{item.product_name}</span>
+                        <div className="flex items-center justify-between mb-2 gap-3">
+                          <div className="flex items-center gap-2">
+                            <ProductImage
+                              stockCode={item.stock_code}
+                              productName={item.product_name}
+                              size="sm"
+                            />
+                            <span className="text-sm font-medium">{item.product_name}</span>
+                          </div>
                           <span className="text-sm font-semibold text-[#8F1A9F]">
                             {item.total_price.toFixed(2)} TL
                           </span>

@@ -6,18 +6,20 @@ import (
 )
 
 type Config struct {
-	HTTPPort    string
-	DatabaseDSN string
-	JWTSecret   string
-	CORSOrigins string
+	HTTPPort       string
+	DatabaseDSN    string
+	JWTSecret      string
+	CORSOrigins    string
+	ProductImagePath string // Ürün fotoğraflarının kaydedileceği klasör yolu
 }
 
 func Load() *Config {
 	cfg := &Config{
-		HTTPPort:    getEnv("HTTP_PORT", "8080"),
-		DatabaseDSN: getEnv("DATABASE_DSN", "host=localhost user=postgres password=postgres dbname=restoran port=5432 sslmode=disable"),
-		JWTSecret:   getEnv("JWT_SECRET", ""),
-		CORSOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:5173"),
+		HTTPPort:        getEnv("HTTP_PORT", "8080"),
+		DatabaseDSN:     getEnv("DATABASE_DSN", "host=localhost user=postgres password=postgres dbname=restoran port=5432 sslmode=disable"),
+		JWTSecret:       getEnv("JWT_SECRET", ""),
+		CORSOrigins:     getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:5173"),
+		ProductImagePath: getEnv("PRODUCT_IMAGE_PATH", "./product-images"), // Default: local development için
 	}
 
 	// Production güvenlik kontrolleri

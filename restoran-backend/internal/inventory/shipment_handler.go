@@ -47,6 +47,7 @@ type ShipmentItemResponse struct {
 	ID               uint    `json:"id"`
 	ProductID        uint    `json:"product_id"`
 	ProductName      string  `json:"product_name"`
+	StockCode        string  `json:"stock_code"`         // Ürün stok kodu
 	Quantity         float64 `json:"quantity"`
 	UnitPrice        float64 `json:"unit_price"`         // KDV'siz birim fiyat
 	UnitPriceWithVAT float64 `json:"unit_price_with_vat"` // KDV'li birim fiyat
@@ -204,6 +205,7 @@ func CreateShipmentHandler() fiber.Handler {
 				ID:               item.ID,
 				ProductID:        item.ProductID,
 				ProductName:      item.Product.Name,
+				StockCode:        item.Product.StockCode,
 				Quantity:         item.Quantity,
 				UnitPrice:        item.UnitPrice,        // KDV'siz birim fiyat
 				UnitPriceWithVAT: item.UnitPriceWithVAT, // KDV'li birim fiyat

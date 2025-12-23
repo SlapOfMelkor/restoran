@@ -34,6 +34,9 @@ services:
       DATABASE_DSN: ${DATABASE_DSN}
       JWT_SECRET: ${JWT_SECRET}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://mimarmuratdemir.com}
+      PRODUCT_IMAGE_PATH: /app/product-images
+    volumes:
+      - product_images:/app/product-images
     networks:
       - restoran-network
     # Port sadece nginx-proxy'ye açık, dış dünyaya değil
@@ -49,6 +52,8 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    volumes:
+      - product_images:/usr/share/nginx/html/product-images
     networks:
       - restoran-network
     # Port sadece nginx-proxy'ye açık
@@ -97,5 +102,7 @@ volumes:
   certbot-www:
     driver: local
   certbot-conf:
+    driver: local
+  product_images:
     driver: local
 
