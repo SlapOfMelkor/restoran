@@ -479,7 +479,7 @@ export const StockPage: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-slate-700">
+                  <tr className="border-b border-[#E5E5E5]">
                     <th className="text-left p-3">Ürün</th>
                     <th className="text-right p-3">Miktar</th>
                     <th className="text-right p-3 hidden sm:table-cell">Son Güncelleme</th>
@@ -493,7 +493,7 @@ export const StockPage: React.FC = () => {
                     .map((stock) => {
                       const product = products.find(p => p.id === stock.product_id);
                       return (
-                        <tr key={stock.product_id} className="border-b border-slate-800">
+                        <tr key={stock.product_id} className="border-b border-[#E5E5E5]">
                           <td className="p-3">
                             <div className="flex items-center gap-3">
                               <ProductImage
@@ -521,7 +521,7 @@ export const StockPage: React.FC = () => {
               {currentStockSearchQuery && currentStock.filter((stock) =>
                 stock.product_name.toLowerCase().includes(currentStockSearchQuery.toLowerCase())
               ).length === 0 && (
-                <p className="text-xs text-slate-500 py-4 text-center">
+                <p className="text-xs text-[#555555] py-4 text-center">
                   "{currentStockSearchQuery}" için sonuç bulunamadı
                 </p>
               )}
@@ -566,14 +566,14 @@ export const StockPage: React.FC = () => {
           {/* Ürün Tablosu */}
           <div>
             {stockItems.length === 0 ? (
-              <p className="text-xs text-slate-500 py-4 text-center">
+                <p className="text-xs text-[#555555] py-4 text-center">
                 Henüz ürün eklenmemiş. Ürün yönetimi sayfasından ürün ekleyin.
               </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="border-b border-slate-700">
+                    <tr className="border-b border-[#E5E5E5]">
                       <th className="text-left p-3">Ürün</th>
                       <th className="text-right p-3 hidden sm:table-cell">Birim</th>
                       <th className="text-right p-3 hidden md:table-cell">Mevcut Stok</th>
@@ -590,7 +590,7 @@ export const StockPage: React.FC = () => {
                           (cs) => cs.product_id === item.product_id
                         );
                         return (
-                          <tr key={item.product_id} className="border-b border-slate-800">
+                          <tr key={item.product_id} className="border-b border-[#E5E5E5]">
                             <td className="p-3">
                               <div className="flex items-center gap-3">
                                 <ProductImage
@@ -629,7 +629,7 @@ export const StockPage: React.FC = () => {
                 {searchQuery && stockItems.filter((item) =>
                   item.product_name.toLowerCase().includes(searchQuery.toLowerCase())
                 ).length === 0 && (
-                  <p className="text-xs text-slate-500 py-4 text-center">
+                  <p className="text-xs text-[#555555] py-4 text-center">
                     "{searchQuery}" için sonuç bulunamadı
                   </p>
                 )}
@@ -660,7 +660,7 @@ export const StockPage: React.FC = () => {
                 })));
                 localStorage.removeItem(STORAGE_KEY);
               }}
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors text-white"
+              className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#222222]"
             >
               Temizle
             </button>
@@ -700,7 +700,7 @@ export const StockPage: React.FC = () => {
             {entriesHistoryDateFilter && (
               <button
                 onClick={() => setEntriesHistoryDateFilter("")}
-                className="px-3 py-2 bg-slate-500 hover:bg-slate-600 rounded text-sm text-white transition-colors"
+                className="px-3 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm text-[#222222] transition-colors"
               >
                 Temizle
               </button>
@@ -734,16 +734,16 @@ export const StockPage: React.FC = () => {
                           </span>
                           {group.user_name && (
                             <>
-                              <span className="text-xs text-slate-500">•</span>
-                              <span className="text-xs text-slate-300">
+                              <span className="text-xs text-[#777777]">•</span>
+                              <span className="text-xs text-[#555555]">
                                 👤 {group.user_name}
                               </span>
                             </>
                           )}
                           {group.allUndone && (
                             <>
-                              <span className="text-xs text-slate-500">•</span>
-                              <span className="text-xs text-yellow-400">
+                              <span className="text-xs text-[#777777]">•</span>
+                              <span className="text-xs text-yellow-600">
                                 (Tümü Geri Alındı)
                               </span>
                             </>
@@ -754,7 +754,7 @@ export const StockPage: React.FC = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="text-xs text-slate-500">
+                        <div className="text-xs text-[#555555]">
                           {new Date(group.created_at).toLocaleString("tr-TR", {
                             day: "2-digit",
                             month: "2-digit",
@@ -765,7 +765,7 @@ export const StockPage: React.FC = () => {
                         </div>
                         <button
                           onClick={() => toggleGroup(group.id)}
-                          className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-xs transition-colors whitespace-nowrap"
+                          className="px-3 py-1.5 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-xs transition-colors whitespace-nowrap text-[#222222]"
                         >
                           {expandedGroups.has(group.id) ? "Gizle" : "Görüntüle"}
                         </button>
@@ -783,7 +783,7 @@ export const StockPage: React.FC = () => {
 
                   {/* Grup Detayları (Expand edildiğinde) */}
                   {expandedGroups.has(group.id) && (
-                    <div className="border-t border-slate-700 p-3 space-y-2">
+                    <div className="border-t border-[#E5E5E5] p-3 space-y-2 bg-[#F9F9F9]">
                       {group.entries.map((entry) => {
                         const product = products.find(p => p.id === entry.product_id);
                         const currentStockItem = currentStock.find(
@@ -793,10 +793,10 @@ export const StockPage: React.FC = () => {
                         return (
                           <div
                             key={entry.id}
-                            className={`p-3 bg-slate-900 rounded border ${
+                            className={`p-3 bg-white rounded border ${
                               entry.is_undone
-                                ? "border-slate-600 opacity-60"
-                                : "border-slate-800"
+                                ? "border-[#CCCCCC] opacity-60"
+                                : "border-[#E5E5E5]"
                             }`}
                           >
                             <div className="flex items-center justify-between gap-4">
@@ -814,8 +814,8 @@ export const StockPage: React.FC = () => {
                                     </span>
                                     {entry.is_undone && (
                                       <>
-                                        <span className="text-xs text-slate-500">•</span>
-                                        <span className="text-xs text-yellow-400">
+                                        <span className="text-xs text-[#777777]">•</span>
+                                        <span className="text-xs text-yellow-600">
                                           (Geri Alındı)
                                         </span>
                                       </>
@@ -917,7 +917,7 @@ export const StockPage: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-slate-700">
+                  <tr className="border-b border-[#E5E5E5]">
                     <th className="text-left p-3">Ürün</th>
                     <th className="text-right p-3 hidden md:table-cell">Başlangıç</th>
                     <th className="text-right p-3 hidden md:table-cell">Gelen</th>
@@ -935,7 +935,7 @@ export const StockPage: React.FC = () => {
                       return (
                         <tr
                           key={row.product_id}
-                          className="border-b border-slate-800"
+                          className="border-b border-[#E5E5E5]"
                         >
                           <td className="p-3">
                             <div className="flex items-center gap-3">
@@ -972,7 +972,7 @@ export const StockPage: React.FC = () => {
               {monthlyReportSearchQuery && stockUsage.filter((row) =>
                 row.product_name.toLowerCase().includes(monthlyReportSearchQuery.toLowerCase())
               ).length === 0 && (
-                <p className="text-xs text-slate-500 py-4 text-center">
+                <p className="text-xs text-[#555555] py-4 text-center">
                   "{monthlyReportSearchQuery}" için sonuç bulunamadı
                 </p>
               )}
