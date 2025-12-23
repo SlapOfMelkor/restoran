@@ -445,15 +445,15 @@ export const ShipmentsPage: React.FC = () => {
             onClick={() => {
               setShowUrlInput(true);
             }}
-            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl"
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
           >
             B2B Sipariş Linkinden Yükle
           </button>
           <button
             onClick={() => setShowForm(true)}
-            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white shadow-lg hover:shadow-xl"
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
           >
-            Yeni Sevkiyat
+            Manuel Sevkiyat Ekle
           </button>
         </div>
       </div>
@@ -559,7 +559,7 @@ export const ShipmentsPage: React.FC = () => {
           setShipmentItems([]);
           localStorage.removeItem(STORAGE_KEY);
         }}
-        title="Yeni Sevkiyat Ekle"
+        title="Manuel Sevkiyat Ekle"
         maxWidth="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-4">

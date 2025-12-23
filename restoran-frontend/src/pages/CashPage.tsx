@@ -46,6 +46,7 @@ export const CashPage: React.FC = () => {
     description: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [dateFilter, setDateFilter] = useState<string>("");
 
   const fetchMovements = async () => {
     setLoading(true);
@@ -186,13 +187,10 @@ export const CashPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-[#555555]">
-          Nakit, POS ve Yemeksepeti giriş kayıtları ile işlem geçmişi
-        </p>
+      <div className="flex items-center justify-center py-8">
         <button
           onClick={() => setShowForm(true)}
-          className="px-4 py-2 rounded-lg text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
+          className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
         >
           Para Girişi Ekle
         </button>
@@ -285,73 +283,86 @@ export const CashPage: React.FC = () => {
       </Modal>
 
       <div className="bg-white/80 rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-        <h2 className="text-sm font-semibold mb-3 text-[#8F1A9F]">Para Girişi Kayıtları</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-[#8F1A9F]">Para Girişi Kayıtları</h2>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="bg-white border border-[#E5E5E5] rounded px-3 py-1.5 text-xs text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+            />
+            {dateFilter && (
+              <button
+                onClick={() => setDateFilter("")}
+                className="px-2 py-1.5 bg-slate-500 hover:bg-slate-600 rounded text-xs text-white transition-colors"
+              >
+                Temizle
+              </button>
+            )}
+          </div>
+        </div>
         {loading ? (
           <p className="text-xs text-[#222222]">Yükleniyor...</p>
         ) : movements.length === 0 ? (
           <p className="text-xs text-[#222222]">Henüz para girişi kaydı bulunmamaktadır</p>
         ) : (
-          <div className="space-y-2">
-            {movements.map((movement) => (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {(dateFilter
+              ? movements.filter(m => m.date === dateFilter)
+              : movements
+            ).map((movement) => (
               <div
                 key={movement.id}
                 className={`p-3 bg-white rounded-xl border ${
                   movement.is_undone
                     ? "border-[#CCCCCC] opacity-60"
                     : "border-[#E5E5E5]"
-                } shadow-sm`}
+                } shadow-sm hover:shadow-md transition-shadow`}
               >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium">
-                        {getMethodLabel(movement.method)}
+                <div className="flex flex-col h-full">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                      movement.method === "cash" 
+                        ? "bg-green-100 text-green-700"
+                        : movement.method === "pos"
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-orange-100 text-orange-700"
+                    }`}>
+                      {getMethodLabel(movement.method)}
+                    </span>
+                    {movement.is_undone && (
+                      <span className="text-xs text-yellow-400">
+                        (Geri Alındı)
                       </span>
-                      <span className="text-xs text-slate-500">•</span>
-                      <span className="text-xs text-[#222222]">
-                        {movement.date}
-                      </span>
-                    {movement.created_by_user_name && (
-                      <>
-                        <span className="text-xs text-slate-500">•</span>
-                        <span className="text-xs text-[#222222]">
-                          👤 {movement.created_by_user_name}
-                        </span>
-                      </>
-                    )}
-                      {movement.is_undone && (
-                        <>
-                          <span className="text-xs text-slate-500">•</span>
-                          <span className="text-xs text-yellow-400">
-                            (Geri Alındı)
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    {movement.description && (
-                      <div className="text-xs text-[#222222]">
-                        {movement.description}
-                      </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-sm font-semibold text-right">
-                      {movement.amount.toFixed(2)} TL
+                  <div className="text-lg font-bold text-[#8F1A9F] mb-2">
+                    {movement.amount.toFixed(2)} TL
+                  </div>
+                  <div className="text-xs text-[#555555] mb-1">
+                    {movement.date}
+                  </div>
+                  {movement.created_by_user_name && (
+                    <div className="text-xs text-[#777777] mb-2">
+                      👤 {movement.created_by_user_name}
                     </div>
+                  )}
+                  {movement.description && (
+                    <div className="text-xs text-[#222222] mb-2 line-clamp-2">
+                      {movement.description}
+                    </div>
+                  )}
+                  <div className="mt-auto pt-2">
                     {movement.log_id && canUndo(movement) && (
                       <button
                         onClick={() =>
                           handleUndo(movement.log_id!, movement.id)
                         }
-                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors whitespace-nowrap"
+                        className="w-full px-2 py-1.5 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors text-white"
                       >
                         Geri Al
                       </button>
-                    )}
-                    {!movement.log_id && (
-                      <span className="text-xs text-slate-500 italic">
-                        Log yok
-                      </span>
                     )}
                   </div>
                 </div>

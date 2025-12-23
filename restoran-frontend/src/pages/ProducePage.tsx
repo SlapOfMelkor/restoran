@@ -586,30 +586,27 @@ export const ProducePage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-[#555555]">
-          Manav alımları ve ödemeleri yönetimi
-        </p>
-        <div className="flex gap-2">
+      <div className="flex items-center justify-center py-8">
+        <div className="flex flex-wrap gap-4 justify-center">
           <button
             onClick={() => {
               setEditingProduct(null);
               setProductFormData({ name: "", unit: "", stock_code: "" });
               setShowProductModal(true);
             }}
-            className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
           >
             Ürün Yönetimi
           </button>
           <button
             onClick={() => setShowPurchasesModal(true)}
-            className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
           >
             Alım Kayıtları
           </button>
           <button
             onClick={() => setShowPaymentsModal(true)}
-            className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
           >
             Ödeme Kayıtları
           </button>
@@ -618,25 +615,25 @@ export const ProducePage: React.FC = () => {
               fetchWastes();
               setShowWastesModal(true);
             }}
-            className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
           >
             Zayiat Kayıtları
           </button>
           <button
             onClick={() => setShowPurchaseForm(true)}
-            className="px-4 py-2 rounded-lg text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
           >
             Alım Ekle
           </button>
           <button
             onClick={() => setShowPaymentForm(true)}
-            className="px-4 py-2 rounded-lg text-sm transition-colors bg-green-600 hover:bg-green-700 text-white"
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
           >
             Ödeme Ekle
           </button>
           <button
             onClick={() => setShowWasteForm(true)}
-            className="px-4 py-2 rounded-lg text-sm transition-colors bg-red-600 hover:bg-red-700 text-white"
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
           >
             Zayiat Ekle
           </button>

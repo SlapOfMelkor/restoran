@@ -222,7 +222,7 @@ export const CenterShipmentsPage: React.FC = () => {
 
       {showForm && (
         <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-          <h2 className="text-sm font-semibold mb-3">Yeni Sevkiyat</h2>
+          <h2 className="text-sm font-semibold mb-3">Manuel Sevkiyat Ekle</h2>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
               <label className="block text-xs text-[#555555] mb-1">

@@ -97,6 +97,7 @@ export const ExpensesPage: React.FC = () => {
     description: "",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [categorySearchQuery, setCategorySearchQuery] = useState("");
 
   const fetchCategories = async () => {
     try {
@@ -423,7 +424,7 @@ export const ExpensesPage: React.FC = () => {
               fetchCategories();
               setShowCategoryManagement(true);
             }}
-            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl"
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
           >
             Kategorileri Yönet
           </button>
@@ -522,8 +523,35 @@ export const ExpensesPage: React.FC = () => {
       ) : categoryBalances.length === 0 ? (
         <p className="text-xs text-[#222222]">Henüz kategori yok</p>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {categoryBalances.map((balance) => (
+        <div className="space-y-4">
+          {/* Kategori Arama Filtresi */}
+          <div>
+            <input
+              type="text"
+              value={categorySearchQuery}
+              onChange={(e) => setCategorySearchQuery(e.target.value)}
+              placeholder="Kategori ara..."
+              className="w-full bg-white border border-[#E5E5E5] rounded-lg px-4 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+            />
+          </div>
+
+          {/* Filtrelenmiş Kategori Listesi */}
+          {(() => {
+            const filteredBalances = categoryBalances.filter((balance) =>
+              balance.category_name.toLowerCase().includes(categorySearchQuery.toLowerCase())
+            );
+            
+            if (filteredBalances.length === 0) {
+              return (
+                <p className="text-xs text-[#222222] text-center py-4">
+                  "{categorySearchQuery}" için kategori bulunamadı
+                </p>
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {filteredBalances.map((balance) => (
             <button
               key={balance.category_id}
               onClick={() => {
@@ -549,7 +577,10 @@ export const ExpensesPage: React.FC = () => {
                 </div>
               </div>
             </button>
-          ))}
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
