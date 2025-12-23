@@ -34,22 +34,8 @@ export const DashboardPage: React.FC = () => {
 
       {/* Ana menü ikonları */}
       <div className="flex-1 px-6 pt-6 pb-4 space-y-6">
-        {/* Üst menü (ANA SAYFA, GÜNLÜK PARA GİRİŞİ, MERKEZ SEVKİYATLARI) */}
+        {/* Üst menü (GÜNLÜK PARA GİRİŞİ, SEVKİYATLAR, STOK GÜNCELLEME) */}
         <div className="grid grid-cols-3 gap-y-6 place-items-center">
-          <button
-            onClick={() => navigate("/")}
-            className="flex flex-col items-center active:scale-[0.97] transition"
-          >
-            <div className={circleBase}>
-              <span className="text-2xl text-[#6a1b9a]">🏠</span>
-            </div>
-            <span className={circleLabel}>
-              ANA
-              <br />
-              SAYFA
-            </span>
-          </button>
-
           <button
             onClick={() => navigate("/cash")}
             className="flex flex-col items-center active:scale-[0.97] transition"
@@ -76,7 +62,6 @@ export const DashboardPage: React.FC = () => {
             </span>
           </button>
 
-          {/* Alt menü (STOK GÜNCELLEME, GİDERLER, FİNANSAL ÖZET) */}
           <button
             onClick={() => navigate("/stock")}
             className="flex flex-col items-center active:scale-[0.97] transition"
@@ -91,6 +76,7 @@ export const DashboardPage: React.FC = () => {
             </span>
           </button>
 
+          {/* Alt menü (GİDERLER, MANAV, FİNANSAL ÖZET) */}
           <button
             onClick={() => navigate("/expenses")}
             className="flex flex-col items-center active:scale-[0.97] transition"
