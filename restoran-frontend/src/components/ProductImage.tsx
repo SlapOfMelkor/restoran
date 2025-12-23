@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 interface ProductImageProps {
   stockCode?: string;
@@ -28,6 +28,17 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     return `/product-images/${code}.jpg`;
   };
 
+  const initialSrc = getImageUrl(stockCode);
+  const [imgSrc, setImgSrc] = useState<string>(initialSrc);
+  const hasErrorRef = useRef(false); // Ref kullanarak sync kontrol
+
+  // stockCode değiştiğinde state'i sıfırla
+  useEffect(() => {
+    const newSrc = getImageUrl(stockCode);
+    setImgSrc(newSrc);
+    hasErrorRef.current = false;
+  }, [stockCode]);
+
   // Boyut class'ları
   const sizeClasses = {
     sm: "w-10 h-10",
@@ -35,21 +46,36 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     lg: "w-24 h-24",
   };
 
-  const imageUrl = getImageUrl(stockCode);
+  const handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    // Sadece bir kez hata durumuna geç (sonsuz döngüyü önle)
+    if (hasErrorRef.current) {
+      return; // Zaten hata durumundayız, tekrar deneme
+    }
+
+    const target = e.target as HTMLImageElement;
+    const currentSrc = target.src || imgSrc;
+    
+    // Eğer şu anki src placeholder veya data URI değilse, placeholder'a geç
+    if (!currentSrc.includes("placeholder.jpg") && !currentSrc.includes("data:image")) {
+      hasErrorRef.current = true;
+      const placeholderUrl = "/product-images/placeholder.jpg";
+      setImgSrc(placeholderUrl);
+    } else if (currentSrc.includes("placeholder.jpg") && !currentSrc.includes("data:image")) {
+      // Placeholder da yüklenemezse, gri bir SVG göster (sonsuz döngüyü önle)
+      hasErrorRef.current = true;
+      const fallbackSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23f3f4f6'/%3E%3C/svg%3E";
+      setImgSrc(fallbackSvg);
+    }
+  };
 
   return (
     <div className={`inline-flex items-center justify-center ${className}`}>
       <img
-        src={imageUrl}
+        src={imgSrc}
         alt={productName}
         className={`${sizeClasses[size]} object-cover rounded border border-gray-200`}
-        onError={(e) => {
-          // Fotoğraf yüklenemezse placeholder göster
-          const target = e.target as HTMLImageElement;
-          if (target.src !== "/product-images/placeholder.jpg") {
-            target.src = "/product-images/placeholder.jpg";
-          }
-        }}
+        onError={handleError}
+        loading="lazy"
       />
     </div>
   );
