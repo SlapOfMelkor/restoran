@@ -55,6 +55,9 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     const target = e.target as HTMLImageElement;
     const currentSrc = target.src || imgSrc;
     
+    // Debug: console'a log at
+    console.warn(`ProductImage yükleme hatası - StockCode: ${stockCode}, Src: ${currentSrc}`);
+    
     // Eğer şu anki src placeholder veya data URI değilse, placeholder'a geç
     if (!currentSrc.includes("placeholder.jpg") && !currentSrc.includes("data:image")) {
       hasErrorRef.current = true;
