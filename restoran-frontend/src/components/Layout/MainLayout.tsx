@@ -83,17 +83,6 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
 
         <nav className="flex-1 px-3 py-4 space-y-1 text-slate-200">
           <NavLink
-            to="/"
-            end
-            className={({ isActive }) =>
-              `${navItemClass} ${isActive ? navItemActiveClass : ""}`
-            }
-            onClick={handleNavClick}
-          >
-            📊 Anasayfa
-          </NavLink>
-
-          <NavLink
             to="/cash"
             className={({ isActive }) =>
               `${navItemClass} ${isActive ? navItemActiveClass : ""}`
