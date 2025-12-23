@@ -278,6 +278,24 @@ func DeleteExpenseCategoryHandler() fiber.Handler {
 			}
 		}
 
+		// Kategoriye ait expense kaydı var mı kontrol et
+		var expenseCount int64
+		if err := database.DB.Model(&models.Expense{}).Where("category_id = ?", id).Count(&expenseCount).Error; err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Kategori kontrolü yapılamadı")
+		}
+		if expenseCount > 0 {
+			return fiber.NewError(fiber.StatusBadRequest, "Bu kategoride borç/ödeme kayıtları var, önce onları temizleyin")
+		}
+
+		// Kategoriye ait expense_payment kaydı var mı kontrol et
+		var paymentCount int64
+		if err := database.DB.Model(&models.ExpensePayment{}).Where("category_id = ?", id).Count(&paymentCount).Error; err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Kategori kontrolü yapılamadı")
+		}
+		if paymentCount > 0 {
+			return fiber.NewError(fiber.StatusBadRequest, "Bu kategoride borç/ödeme kayıtları var, önce onları temizleyin")
+		}
+
 		if err := database.DB.Delete(&cat).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Kategori silinemedi")
 		}

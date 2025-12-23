@@ -77,7 +77,7 @@ export const ExpensesPage: React.FC = () => {
   const [expenses, setExpenses] = useState<ExpenseWithLog[]>([]);
   const [expensePayments, setExpensePayments] = useState<ExpensePaymentWithLog[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [showCategoryManagement, setShowCategoryManagement] = useState(false);
   const [categoryFormData, setCategoryFormData] = useState({ name: "" });
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [expenseFormData, setExpenseFormData] = useState({
@@ -250,7 +250,6 @@ export const ExpensesPage: React.FC = () => {
       await apiClient.post("/admin/expense-categories", payload);
       alert("Kategori başarıyla oluşturuldu");
       setCategoryFormData({ name: "" });
-      setShowCategoryForm(false);
       fetchCategories();
       fetchCategoryBalances();
     } catch (err: any) {
@@ -417,67 +416,103 @@ export const ExpensesPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-[#555555]">
-          Kategori bazlı gider ve borç yönetimi
-        </p>
-        <div className="flex gap-2">
-          {user?.role === "super_admin" && (
-            <button
-              onClick={() => setShowCategoryForm(true)}
-              className="px-4 py-2 rounded-lg text-sm transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5]"
-            >
-              Kategori Ekle
-            </button>
-          )}
+      {user?.role === "super_admin" && (
+        <div className="flex items-center justify-center py-8">
+          <button
+            onClick={() => {
+              fetchCategories();
+              setShowCategoryManagement(true);
+            }}
+            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl"
+          >
+            Kategorileri Yönet
+          </button>
         </div>
-      </div>
+      )}
 
+      {/* Kategorileri Yönet Modal */}
       {user?.role === "super_admin" && (
         <Modal
-          isOpen={showCategoryForm}
+          isOpen={showCategoryManagement}
           onClose={() => {
-            setShowCategoryForm(false);
+            setShowCategoryManagement(false);
             setCategoryFormData({ name: "" });
           }}
-          title="Yeni Gider Kategorisi"
+          title="Gider Kategorilerini Yönet"
+          maxWidth="lg"
         >
-          <form onSubmit={handleCategorySubmit} className="space-y-3">
+          <div className="space-y-4">
+            {/* Kategori Ekleme Formu */}
+            <div className="bg-[#F4F4F4] rounded-lg p-4">
+              <h3 className="text-sm font-semibold mb-3">Yeni Kategori Ekle</h3>
+              <form onSubmit={handleCategorySubmit} className="space-y-3">
+                <div>
+                  <label className="block text-xs text-[#555555] mb-1">
+                    Kategori Adı
+                  </label>
+                  <input
+                    type="text"
+                    value={categoryFormData.name}
+                    onChange={(e) =>
+                      setCategoryFormData({ name: e.target.value })
+                    }
+                    className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                    placeholder="Örn: Manav, Kasap, Fırın"
+                    required
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
+                  >
+                    {submitting ? "Oluşturuluyor..." : "Kategori Ekle"}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Kategori Listesi */}
             <div>
-              <label className="block text-xs text-[#555555] mb-1">
-                Kategori Adı
-              </label>
-              <input
-                type="text"
-                value={categoryFormData.name}
-                onChange={(e) =>
-                  setCategoryFormData({ name: e.target.value })
-                }
-                className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
-                placeholder="Örn: Manav, Kasap, Fırın"
-                required
-              />
+              <h3 className="text-sm font-semibold mb-3">Mevcut Kategoriler</h3>
+              {categories.length === 0 ? (
+                <p className="text-xs text-[#222222] text-center py-4">
+                  Henüz kategori yok
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {categories.map((category) => (
+                    <div
+                      key={category.id}
+                      className="flex items-center justify-between p-3 bg-white rounded-lg border border-[#E5E5E5]"
+                    >
+                      <span className="text-sm font-medium">{category.name}</span>
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`"${category.name}" kategorisini silmek istediğinize emin misiniz?`)) {
+                            return;
+                          }
+                          try {
+                            await apiClient.delete(`/admin/expense-categories/${category.id}`);
+                            alert("Kategori başarıyla silindi");
+                            fetchCategories();
+                            fetchCategoryBalances();
+                          } catch (err: any) {
+                            const errorMessage = err.response?.data?.error || "Kategori silinemedi";
+                            alert(errorMessage);
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors text-white"
+                      >
+                        Sil
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="flex gap-2 pt-2">
-              <button
-                type="submit"
-                disabled={submitting}
-                className="flex-1 px-4 py-2 rounded text-sm transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
-              >
-                {submitting ? "Oluşturuluyor..." : "Oluştur"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCategoryForm(false);
-                  setCategoryFormData({ name: "" });
-                }}
-                className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
-              >
-                İptal
-              </button>
-            </div>
-          </form>
+          </div>
         </Modal>
       )}
 
