@@ -1,8 +1,13 @@
 package inventory
 
 import (
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"strings"
 
+	"restoran-backend/internal/config"
 	"restoran-backend/internal/database"
 	"restoran-backend/internal/models"
 
@@ -167,12 +172,35 @@ func DeleteProductHandler() fiber.Handler {
 }
 
 // DELETE /api/admin/products (tüm ürünleri sil)
-func DeleteAllProductsHandler() fiber.Handler {
+func DeleteAllProductsHandler(cfg *config.Config) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Tüm ürünleri sil
+		// Önce tüm ürünleri çek (fotoğrafları silmek için stok kodlarına ihtiyacımız var)
+		var products []models.Product
+		if err := database.DB.Find(&products).Error; err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler listelenemedi")
+		}
+
+		// Ürün fotoğraflarını sil
+		deletedImages := 0
+		for _, product := range products {
+			if product.StockCode != "" {
+				imagePath := filepath.Join(cfg.ProductImagePath, fmt.Sprintf("%s.jpg", product.StockCode))
+				if err := os.Remove(imagePath); err == nil {
+					deletedImages++
+					log.Printf("Ürün fotoğrafı silindi: %s", imagePath)
+				} else if !os.IsNotExist(err) {
+					// Dosya yoksa sorun değil, diğer hataları log'la
+					log.Printf("Ürün fotoğrafı silinirken hata (%s): %v", imagePath, err)
+				}
+			}
+		}
+
+		// Tüm ürünleri veritabanından sil
 		if err := database.DB.Exec("DELETE FROM products").Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler silinemedi")
 		}
+
+		log.Printf("Tüm ürünler silindi. %d fotoğraf silindi.", deletedImages)
 
 		return c.SendStatus(fiber.StatusNoContent)
 	}

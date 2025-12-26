@@ -80,7 +80,7 @@ func main() {
 	adminRoutes.Post("/products", inventory.CreateProductHandler())
 	adminRoutes.Put("/products/:id", inventory.UpdateProductHandler())
 	adminRoutes.Delete("/products/:id", inventory.DeleteProductHandler())
-	adminRoutes.Delete("/products", inventory.DeleteAllProductsHandler())
+	adminRoutes.Delete("/products", inventory.DeleteAllProductsHandler(cfg))
 	adminRoutes.Post("/products/bulk-import-b2b", inventory.BulkImportB2BProductsHandler(cfg))
 
 	// Gider kategorileri
