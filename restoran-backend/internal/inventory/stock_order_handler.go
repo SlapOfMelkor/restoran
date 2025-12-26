@@ -186,40 +186,65 @@ func UploadProductOrderHandler() fiber.Handler {
 				continue
 			}
 
-			// Ürünü bul (isim veya stok kodu ile - büyük/küçük harf, Türkçe karakter ve miktar bilgileri duyarsız)
-			// Tüm ürünleri çekip normalize edilmiş haliyle karşılaştır
+			// Ürünü bul (isim veya stok kodu ile)
+			// Önce tam eşleşme (miktar bilgisi dahil) kontrol et, yoksa miktar bilgilerini göz ardı ederek eşleştir
 			var products []models.Product
 			if err := database.DB.Find(&products).Error; err != nil {
 				unmatchedProducts = append(unmatchedProducts, productName)
 				continue
 			}
 
-			// Ürün adını normalize et (Türkçe karakterler + miktar bilgileri kaldırıldı)
-			normalizedProductName := normalizeProductName(productName)
 			var product models.Product
 			found := false
 
+			// 1. ADIM: Tam eşleşme kontrolü (miktar bilgisi dahil, sadece Türkçe karakter normalize)
+			normalizedProductNameFull := normalizeTurkish(productName)
 			for _, p := range products {
-				// Veritabanındaki ürün adını normalize et
-				normalizedDBName := normalizeProductName(p.Name)
+				normalizedDBNameFull := normalizeTurkish(p.Name)
 				
-				// Stok kodunu da kontrol et (stok kodunda genelde miktar bilgisi olmaz ama yine de normalize edelim)
-				normalizedDBStockCode := ""
+				// Tam eşleşme varsa (miktar bilgisi dahil)
+				if normalizedDBNameFull == normalizedProductNameFull {
+					product = p
+					found = true
+					break
+				}
+				
+				// Stok kodu ile eşleşme kontrolü
 				if p.StockCode != "" {
-					normalizedDBStockCode = normalizeTurkish(p.StockCode)
+					normalizedDBStockCode := normalizeTurkish(p.StockCode)
+					if normalizedDBStockCode == normalizedProductNameFull {
+						product = p
+						found = true
+						break
+					}
 				}
+			}
 
-				// Eşleşme kontrolü: normalize edilmiş ürün adları veya stok kodu
-				if normalizedDBName == normalizedProductName {
-					product = p
-					found = true
-					break
-				}
-				// Stok kodu ile de eşleştirmeyi dene (stok kodunda genelde miktar bilgisi olmaz)
-				if normalizedDBStockCode != "" && normalizedDBStockCode == normalizeTurkish(productName) {
-					product = p
-					found = true
-					break
+			// 2. ADIM: Tam eşleşme yoksa, miktar bilgilerini göz ardı ederek eşleştir
+			if !found {
+				normalizedProductNameNoQuantity := normalizeProductName(productName)
+				
+				for _, p := range products {
+					// Veritabanındaki ürün adını normalize et (miktar bilgilerini kaldırarak)
+					normalizedDBNameNoQuantity := normalizeProductName(p.Name)
+					
+					// Miktar bilgileri göz ardı edilerek eşleşme kontrolü
+					if normalizedDBNameNoQuantity == normalizedProductNameNoQuantity {
+						product = p
+						found = true
+						break
+					}
+					
+					// Stok kodu ile de eşleştirmeyi dene (stok kodunda genelde miktar bilgisi olmaz)
+					if p.StockCode != "" {
+						normalizedDBStockCode := normalizeTurkish(p.StockCode)
+						normalizedProductStockCode := normalizeTurkish(productName)
+						if normalizedDBStockCode == normalizedProductStockCode {
+							product = p
+							found = true
+							break
+						}
+					}
 				}
 			}
 
