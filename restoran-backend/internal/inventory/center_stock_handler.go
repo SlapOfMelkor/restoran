@@ -467,19 +467,93 @@ func MonthlyStockReportHandler() fiber.Handler {
 			Where("branch_id = ? AND type = ? AND snapshot_date = ?", branchID, models.SnapshotEndOfMonth, lastDay).
 			Scan(&endRows)
 
-		// sevkiyatlar
+		// Geri alınan (undo edilen) sevkiyatların ID'lerini bul
+		type UndoneLog struct {
+			EntityID uint `gorm:"column:entity_id"`
+		}
+		var undoneCenterShipmentIDs []UndoneLog
+		var undoneShipmentIDs []UndoneLog
+		
+		// Geri alınan CenterShipment'ları bul
+		database.DB.Model(&models.AuditLog{}).
+			Select("entity_id").
+			Where("entity_type = ? AND action = ? AND is_undone = ? AND (branch_id = ? OR branch_id IS NULL)", 
+				"center_shipment", models.AuditActionCreate, true, branchID).
+			Scan(&undoneCenterShipmentIDs)
+		
+		// Geri alınan Shipment'ları bul
+		database.DB.Model(&models.AuditLog{}).
+			Select("entity_id").
+			Where("entity_type = ? AND action = ? AND is_undone = ? AND (branch_id = ? OR branch_id IS NULL)", 
+				"shipment", models.AuditActionCreate, true, branchID).
+			Scan(&undoneShipmentIDs)
+		
+		undoneCenterShipmentIDMap := make(map[uint]bool)
+		for _, log := range undoneCenterShipmentIDs {
+			undoneCenterShipmentIDMap[log.EntityID] = true
+		}
+		
+		undoneShipmentIDMap := make(map[uint]bool)
+		for _, log := range undoneShipmentIDs {
+			undoneShipmentIDMap[log.EntityID] = true
+		}
+		
+		// Tüm CenterShipment'ları al (geri alınanları filtrelemek için)
+		var allCenterShipments []models.CenterShipment
+		database.DB.
+			Where("branch_id = ? AND date >= ? AND date <= ?", branchID, firstDay, lastDay).
+			Find(&allCenterShipments)
+		
+		// Tüm Shipment'ları al (geri alınanları filtrelemek için)
+		var allShipments []models.Shipment
+		database.DB.
+			Preload("Items").
+			Where("branch_id = ? AND date >= ? AND date <= ? AND is_stocked = true", branchID, firstDay, lastDay).
+			Find(&allShipments)
+		
+		// Sevkiyatları product_id'ye göre topla (geri alınanları hariç tut)
 		type shipRow struct {
 			ProductID    uint    `gorm:"column:product_id"`
 			IncomingQty  float64 `gorm:"column:incoming_qty"`
 			IncomingCost float64 `gorm:"column:incoming_cost"`
 		}
+		shipmentMap := make(map[uint]*shipRow)
+		
+		// CenterShipment'ları ekle
+		for _, cs := range allCenterShipments {
+			if undoneCenterShipmentIDMap[cs.ID] {
+				continue // Geri alınmış sevkiyatları atla
+			}
+			row, ok := shipmentMap[cs.ProductID]
+			if !ok {
+				row = &shipRow{ProductID: cs.ProductID}
+				shipmentMap[cs.ProductID] = row
+			}
+			row.IncomingQty += cs.Quantity
+			row.IncomingCost += cs.TotalPrice
+		}
+		
+		// Shipment'ları ekle
+		for _, shipment := range allShipments {
+			if undoneShipmentIDMap[shipment.ID] {
+				continue // Geri alınmış sevkiyatları atla
+			}
+			for _, item := range shipment.Items {
+				row, ok := shipmentMap[item.ProductID]
+				if !ok {
+					row = &shipRow{ProductID: item.ProductID}
+					shipmentMap[item.ProductID] = row
+				}
+				row.IncomingQty += item.Quantity
+				row.IncomingCost += item.TotalPrice
+			}
+		}
+		
+		// Map'i slice'a çevir
 		var shipRows []shipRow
-		database.DB.
-			Model(&models.CenterShipment{}).
-			Select("product_id, SUM(quantity) as incoming_qty, SUM(total_price) as incoming_cost").
-			Where("branch_id = ? AND date >= ? AND date <= ?", branchID, firstDay, lastDay).
-			Group("product_id").
-			Scan(&shipRows)
+		for _, row := range shipmentMap {
+			shipRows = append(shipRows, *row)
+		}
 
 		// product_id -> row agg
 		type agg struct {

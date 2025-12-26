@@ -372,12 +372,43 @@ func GetMonthlyStockUsageHandler() fiber.Handler {
 		lastDay := firstDay.AddDate(0, 1, -1)
 
 		// Ay başındaki stok (ayın ilk gününden önceki en son stok girişi)
-		// Ay içindeki sevkiyatlar (stoka kaydedilmiş olanlar)
+		// Ay içindeki sevkiyatlar (stoka kaydedilmiş olanlar + center shipments)
 		// Ay sonundaki stok (ayın son günündeki veya sonrasındaki en son stok girişi)
 
-		// Tüm ürünleri al
+		// Geri alınan (undo edilen) sevkiyatların ID'lerini bul
+		type UndoneLog struct {
+			EntityID uint `gorm:"column:entity_id"`
+		}
+		var undoneShipmentIDs []UndoneLog
+		var undoneCenterShipmentIDs []UndoneLog
+		
+		// Geri alınan Shipment'ları bul
+		database.DB.Model(&models.AuditLog{}).
+			Select("entity_id").
+			Where("entity_type = ? AND action = ? AND is_undone = ? AND (branch_id = ? OR branch_id IS NULL)", 
+				"shipment", models.AuditActionCreate, true, branchID).
+			Scan(&undoneShipmentIDs)
+		
+		// Geri alınan CenterShipment'ları bul
+		database.DB.Model(&models.AuditLog{}).
+			Select("entity_id").
+			Where("entity_type = ? AND action = ? AND is_undone = ? AND (branch_id = ? OR branch_id IS NULL)", 
+				"center_shipment", models.AuditActionCreate, true, branchID).
+			Scan(&undoneCenterShipmentIDs)
+		
+		undoneShipmentIDMap := make(map[uint]bool)
+		for _, log := range undoneShipmentIDs {
+			undoneShipmentIDMap[log.EntityID] = true
+		}
+		
+		undoneCenterShipmentIDMap := make(map[uint]bool)
+		for _, log := range undoneCenterShipmentIDs {
+			undoneCenterShipmentIDMap[log.EntityID] = true
+		}
+
+		// Tüm ürünleri al (sadece merkez ürünleri)
 		var products []models.Product
-		if err := database.DB.Find(&products).Error; err != nil {
+		if err := database.DB.Where("is_center_product = ?", true).Find(&products).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler listelenemedi")
 		}
 
@@ -405,20 +436,41 @@ func GetMonthlyStockUsageHandler() fiber.Handler {
 				startQty = startEntry.Quantity
 			}
 
-			// Ay içi gelen sevkiyatlar (stoka kaydedilmiş)
-			var incomingShipments []models.Shipment
+			// Ay içi gelen sevkiyatlar (stoka kaydedilmiş) - geri alınanları hariç tut
 			incomingQty := 0.0
+			
+			// 1. Shipment'lar (B2B sevkiyatlar)
+			var incomingShipments []models.Shipment
 			err = database.DB.
 				Preload("Items", "product_id = ?", product.ID).
 				Where("branch_id = ? AND date >= ? AND date <= ? AND is_stocked = true", branchID, firstDay, lastDay).
 				Find(&incomingShipments).Error
 			if err == nil {
 				for _, shipment := range incomingShipments {
+					// Geri alınmış sevkiyatları atla
+					if undoneShipmentIDMap[shipment.ID] {
+						continue
+					}
 					for _, item := range shipment.Items {
 						if item.ProductID == product.ID {
 							incomingQty += item.Quantity
 						}
 					}
+				}
+			}
+			
+			// 2. CenterShipment'lar (manuel merkez sevkiyatları) - geri alınanları hariç tut
+			var centerShipments []models.CenterShipment
+			err = database.DB.
+				Where("branch_id = ? AND product_id = ? AND date >= ? AND date <= ?", branchID, product.ID, firstDay, lastDay).
+				Find(&centerShipments).Error
+			if err == nil {
+				for _, cs := range centerShipments {
+					// Geri alınmış sevkiyatları atla
+					if undoneCenterShipmentIDMap[cs.ID] {
+						continue
+					}
+					incomingQty += cs.Quantity
 				}
 			}
 
