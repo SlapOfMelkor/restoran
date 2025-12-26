@@ -77,11 +77,12 @@ func main() {
 	adminRoutes.Get("/branches/:id/admins", admin.ListBranchAdminsHandler())
 
 	// Ürün yönetimi
+	// ÖNEMLİ: Parametresiz route'lar parametreli route'lardan ÖNCE tanımlanmalı
 	adminRoutes.Post("/products", inventory.CreateProductHandler())
-	adminRoutes.Put("/products/:id", inventory.UpdateProductHandler())
-	adminRoutes.Delete("/products/:id", inventory.DeleteProductHandler())
-	adminRoutes.Delete("/products", inventory.DeleteAllProductsHandler(cfg))
+	adminRoutes.Delete("/products", inventory.DeleteAllProductsHandler(cfg)) // Parametresiz route önce
 	adminRoutes.Post("/products/bulk-import-b2b", inventory.BulkImportB2BProductsHandler(cfg))
+	adminRoutes.Put("/products/:id", inventory.UpdateProductHandler())
+	adminRoutes.Delete("/products/:id", inventory.DeleteProductHandler()) // Parametreli route sonra
 
 	// Gider kategorileri
 	adminRoutes.Post("/expense-categories", expense.CreateExpenseCategoryHandler())
