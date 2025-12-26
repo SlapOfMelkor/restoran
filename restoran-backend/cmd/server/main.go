@@ -129,6 +129,7 @@ func main() {
 	protected.Post("/stock-entries", inventory.CreateStockEntryHandler())
 	protected.Get("/stock-entries", inventory.ListStockEntriesHandler())
 	protected.Get("/stock-entries/current", inventory.GetCurrentStockHandler())
+	protected.Post("/stock-entries/upload-order", inventory.UploadProductOrderHandler()) // XLSX sıralama yükleme
 	protected.Get("/stock-entries/usage-between-counts", inventory.GetStockUsageBetweenCountsHandler())
 	protected.Get("/stock-usage/monthly", inventory.GetMonthlyStockUsageHandler())
 

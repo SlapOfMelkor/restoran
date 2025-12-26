@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"restoran-backend/internal/audit"
@@ -249,6 +250,15 @@ func GetCurrentStockHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler listelenemedi")
 		}
 
+		// Sıralama bilgisini al (varsa)
+		var orderMap map[uint]int = make(map[uint]int)
+		var branchOrders []models.BranchProductOrder
+		if err := database.DB.Where("branch_id = ?", branchID).Find(&branchOrders).Error; err == nil {
+			for _, order := range branchOrders {
+				orderMap[order.ProductID] = order.OrderIndex
+			}
+		}
+
 		type CurrentStock struct {
 			ProductID   uint    `json:"product_id"`
 			ProductName string  `json:"product_name"`
@@ -256,6 +266,7 @@ func GetCurrentStockHandler() fiber.Handler {
 			Unit        string  `json:"unit"`
 			Quantity    float64 `json:"quantity"`
 			LastUpdate  string  `json:"last_update"`
+			OrderIndex  *int    `json:"order_index,omitempty"` // Sıralama için (nil ise sıralama yok)
 		}
 
 		currentStocks := make([]CurrentStock, 0)
@@ -330,6 +341,12 @@ func GetCurrentStockHandler() fiber.Handler {
 				lastUpdate = lastShipment.Date.Format("2006-01-02")
 			}
 
+			orderIdx := orderMap[product.ID]
+			var orderIdxPtr *int
+			if _, hasOrder := orderMap[product.ID]; hasOrder {
+				orderIdxPtr = &orderIdx
+			}
+
 			currentStocks = append(currentStocks, CurrentStock{
 				ProductID:   product.ID,
 				ProductName: product.Name,
@@ -337,8 +354,31 @@ func GetCurrentStockHandler() fiber.Handler {
 				Unit:        product.Unit,
 				Quantity:    totalQuantity,
 				LastUpdate:  lastUpdate,
+				OrderIndex:  orderIdxPtr,
 			})
 		}
+
+		// Sıralamaya göre sort et (order_index olanlar önce, sonra diğerleri)
+		// Go'da slice sort için sort.Slice kullan
+		sort.Slice(currentStocks, func(i, j int) bool {
+			iOrder := currentStocks[i].OrderIndex
+			jOrder := currentStocks[j].OrderIndex
+
+			// İkisi de sıralama varsa, order_index'e göre
+			if iOrder != nil && jOrder != nil {
+				return *iOrder < *jOrder
+			}
+			// Sadece i sıralama varsa, i önce gelsin
+			if iOrder != nil {
+				return true
+			}
+			// Sadece j sıralama varsa, j önce gelsin
+			if jOrder != nil {
+				return false
+			}
+			// İkisi de yoksa, ürün adına göre alfabetik
+			return currentStocks[i].ProductName < currentStocks[j].ProductName
+		})
 
 		return c.JSON(currentStocks)
 	}

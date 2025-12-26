@@ -46,6 +46,7 @@ interface CurrentStock {
   unit: string;
   quantity: number;
   last_update: string;
+  order_index?: number; // XLSX'ten gelen sıralama
 }
 
 interface StockUsageRow {
@@ -105,6 +106,7 @@ export const StockPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentStockSearchQuery, setCurrentStockSearchQuery] = useState("");
   const [monthlyReportSearchQuery, setMonthlyReportSearchQuery] = useState("");
+  const [uploadingOrder, setUploadingOrder] = useState(false);
 
   // localStorage'dan draft'ı yükle
   useEffect(() => {
@@ -553,6 +555,56 @@ export const StockPage: React.FC = () => {
             />
           </div>
 
+          {/* XLSX Sıralama Yükleme */}
+          <div className="border border-[#E5E5E5] rounded-lg p-3 bg-gray-50">
+            <label className="block text-xs font-medium text-[#555555] mb-2">
+              Ürün Sıralaması Yükle (XLSX)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="file"
+                accept=".xlsx"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+
+                  setUploadingOrder(true);
+                  try {
+                    const formData = new FormData();
+                    formData.append("file", file);
+                    const params: any = {};
+                    if (user?.role === "super_admin" && selectedBranchId) {
+                      params.branch_id = selectedBranchId;
+                    }
+                    const res = await apiClient.post("/stock-entries/upload-order", formData, {
+                      headers: { "Content-Type": "multipart/form-data" },
+                      params,
+                    });
+                    alert(res.data.message || "Sıralama başarıyla yüklendi");
+                    // Mevcut stoku yeniden yükle (sıralama güncellenmiş olacak)
+                    await fetchCurrentStock();
+                    // Stock items'ı da güncelle
+                    await fetchProducts();
+                  } catch (err: any) {
+                    alert(err.response?.data?.error || "Sıralama yüklenemedi");
+                  } finally {
+                    setUploadingOrder(false);
+                    // Input'u temizle
+                    e.target.value = "";
+                  }
+                }}
+                disabled={uploadingOrder}
+                className="flex-1 text-xs text-[#555555] file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-[#8F1A9F] file:text-white hover:file:bg-[#7a168c] disabled:opacity-50"
+              />
+              {uploadingOrder && (
+                <span className="text-xs text-[#555555] self-center">Yükleniyor...</span>
+              )}
+            </div>
+            <p className="text-xs text-[#777777] mt-1">
+              XLSX dosyasının ilk kolonunda ürün adları olmalıdır.
+            </p>
+          </div>
+
           {/* Filtreleme */}
           <div>
             <input
@@ -584,8 +636,29 @@ export const StockPage: React.FC = () => {
                   <tbody>
                     {stockItems
                       .filter((item) =>
+                        searchQuery === "" ||
                         item.product_name.toLowerCase().includes(searchQuery.toLowerCase())
                       )
+                      .sort((a, b) => {
+                        // Filtreleme varsa sıralama yok (özgün sıra korunur)
+                        if (searchQuery) {
+                          return 0;
+                        }
+                        // Filtreleme yoksa, currentStock'tan order_index'e göre sırala
+                        const aStock = currentStock.find(cs => cs.product_id === a.product_id);
+                        const bStock = currentStock.find(cs => cs.product_id === b.product_id);
+                        const aOrder = aStock?.order_index;
+                        const bOrder = bStock?.order_index;
+                        
+                        // order_index olanlar önce, sonra diğerleri
+                        if (aOrder !== undefined && bOrder !== undefined) {
+                          return aOrder - bOrder;
+                        }
+                        if (aOrder !== undefined) return -1;
+                        if (bOrder !== undefined) return 1;
+                        // İkisi de yoksa ürün adına göre alfabetik
+                        return a.product_name.localeCompare(b.product_name);
+                      })
                       .map((item) => {
                         const currentStockItem = currentStock.find(
                           (cs) => cs.product_id === item.product_id

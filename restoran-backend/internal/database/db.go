@@ -117,9 +117,10 @@ func Init(cfg *config.Config) {
 		&models.ProduceProduct{},  // Manav ürünleri (Product tablosundan bağımsız)
 		&models.ProducePurchase{},
 		&models.ProducePayment{},
-		&models.ProduceWaste{},    // Manav zayiat kayıtları
-		&models.TradeTransaction{}, // Ticari işlemler (alacak/verecek)
-		&models.TradePayment{},     // Ticari ödemeler
+		&models.ProduceWaste{},        // Manav zayiat kayıtları
+		&models.TradeTransaction{},     // Ticari işlemler (alacak/verecek)
+		&models.TradePayment{},         // Ticari ödemeler
+		&models.BranchProductOrder{},   // Şube bazlı ürün sıralama
 	)
 	if err != nil {
 		log.Fatalf("AutoMigrate hatası: %v", err)
