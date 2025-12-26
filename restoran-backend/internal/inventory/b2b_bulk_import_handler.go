@@ -1,7 +1,6 @@
 package inventory
 
 import (
-	"fmt"
 	"log"
 	"restoran-backend/internal/config"
 
