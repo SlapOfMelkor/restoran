@@ -416,23 +416,23 @@ export const StockPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-center py-8">
-        <div className="flex gap-4">
+      <div className="flex items-center justify-center py-4 md:py-8">
+        <div className="flex flex-col md:flex-row gap-3 md:gap-4 w-full max-w-md md:max-w-none px-4 md:px-0 md:flex-wrap md:justify-center">
           <button
             onClick={() => setShowForm(true)}
-            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
+            className="px-6 py-3 md:px-8 md:py-4 rounded-xl text-sm md:text-base font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white shadow-lg hover:shadow-xl w-full md:min-w-[200px] md:max-w-[250px] whitespace-normal text-center break-words"
           >
             Stok Sayımı
           </button>
           <button
             onClick={() => setShowCurrentStock(true)}
-            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
+            className="px-6 py-3 md:px-8 md:py-4 rounded-xl text-sm md:text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl w-full md:min-w-[200px] md:max-w-[250px] whitespace-normal text-center break-words"
           >
             Mevcut Stok Durumu
           </button>
           <button
             onClick={() => setShowReport(true)}
-            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
+            className="px-6 py-3 md:px-8 md:py-4 rounded-xl text-sm md:text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl w-full md:min-w-[200px] md:max-w-[250px] whitespace-normal text-center break-words"
           >
             Aylık Harcama
           </button>
@@ -441,7 +441,7 @@ export const StockPage: React.FC = () => {
               fetchStockEntries();
               setShowEntriesHistory(true);
             }}
-            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
+            className="px-6 py-3 md:px-8 md:py-4 rounded-xl text-sm md:text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl w-full md:min-w-[200px] md:max-w-[250px] whitespace-normal text-center break-words"
           >
             Geçmiş Girişleri Görüntüle
           </button>
