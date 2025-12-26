@@ -3,6 +3,7 @@ package inventory
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -70,41 +71,55 @@ func ScrapeB2BProductPage(stockCode string) (*B2BProductInfo, error) {
 	}
 
 	// Ürün adını çek: /html/body/div[3]/div[3]/div[2]/div[2]/div[1]/div/div[2]/h4
-	// XPath'i regex ile taklit edelim
-	// div[3]/div[3]/div[2]/div[2]/div[1]/div/div[2]/h4 içindeki metni bul
-	// Basit yaklaşım: <h4> tag'ini arayalım
-	h4Re := regexp.MustCompile(`<h4[^>]*>(.*?)</h4>`)
-	h4Matches := h4Re.FindAllStringSubmatch(htmlContent, -1)
-	
-	// Ürün detayı bölümündeki h4'ü bul
-	for _, match := range h4Matches {
-		if len(match) > 1 {
-			name := strings.TrimSpace(cleanHTML(match[1]))
-			// Boş değilse ve çok kısa değilse (en az 3 karakter)
-			if name != "" && len(name) > 2 && !strings.Contains(strings.ToLower(name), "ürün detayı") {
-				info.Name = name
-				break
-			}
-		}
-	}
+	// "Ürün Detayı" başlığından sonraki ilk h4'ü bul (navigasyon/metinleri atlamak için)
+	productDetailRe := regexp.MustCompile(`(?i)ürün\s+detayı`)
+	detailIndex := productDetailRe.FindStringIndex(htmlContent)
 
-	// Eğer h4'ten bulamadıysak, alternatif olarak başka bir yerde ara
-	if info.Name == "" {
-		// "Ürün Detayı" bölümünden sonraki h4'ü ara
-		productDetailRe := regexp.MustCompile(`(?i)ürün\s+detayı`)
-		detailIndex := productDetailRe.FindStringIndex(htmlContent)
-		if detailIndex != nil {
-			searchStart := detailIndex[0]
-			if searchStart+3000 < len(htmlContent) {
-				searchContent := htmlContent[searchStart : searchStart+3000]
-				h4Matches := h4Re.FindAllStringSubmatch(searchContent, -1)
-				for _, match := range h4Matches {
-					if len(match) > 1 {
-						name := strings.TrimSpace(cleanHTML(match[1]))
-						if name != "" && len(name) > 2 {
-							info.Name = name
+	if detailIndex != nil {
+		searchStart := detailIndex[0]
+		// "Ürün Detayı" bölümünden sonraki 5000 karakteri al
+		searchEnd := searchStart + 5000
+		if searchEnd > len(htmlContent) {
+			searchEnd = len(htmlContent)
+		}
+		searchContent := htmlContent[searchStart:searchEnd]
+
+		// Bu bölümdeki ilk h4'ü bul
+		h4Re := regexp.MustCompile(`<h4[^>]*>(.*?)</h4>`)
+		h4Matches := h4Re.FindAllStringSubmatch(searchContent, -1)
+
+		// Filtrelenmesi gereken metinler
+		excludedWords := []string{
+			"ürün detayı",
+			"sepetim",
+			"cadının evi",
+			"hesabım",
+			"çıkış",
+			"ana sayfa",
+			"sipariş",
+			"ürünler",
+			"cari hesabım",
+			"ödeme yap",
+		}
+
+		for _, match := range h4Matches {
+			if len(match) > 1 {
+				name := strings.TrimSpace(cleanHTML(match[1]))
+
+				// Filtreleme: En az 3 karakter, excluded words içermemeli
+				if name != "" && len(name) > 2 {
+					nameLower := strings.ToLower(name)
+					excluded := false
+					for _, word := range excludedWords {
+						if strings.Contains(nameLower, word) {
+							excluded = true
 							break
 						}
+					}
+
+					if !excluded {
+						info.Name = name
+						break
 					}
 				}
 			}
@@ -123,10 +138,31 @@ func ScrapeB2BProductPage(stockCode string) (*B2BProductInfo, error) {
 	}
 
 	// Kategoriyi çek: "Kategori : Ambalaj Grupları" formatında
-	categoryRe := regexp.MustCompile(`Kategori\s*[:\-]?\s*([^<\n]+)`)
-	categoryMatch := categoryRe.FindStringSubmatch(htmlContent)
-	if len(categoryMatch) > 1 {
-		info.Category = strings.TrimSpace(cleanHTML(categoryMatch[1]))
+	// "Ürün Detayı" bölümünden sonra ara
+	categoryRe := regexp.MustCompile(`Kategori\s*[:\-]?\s*([^<\n\r]+)`)
+
+	if detailIndex != nil {
+		searchStart := detailIndex[0]
+		searchEnd := searchStart + 3000
+		if searchEnd > len(htmlContent) {
+			searchEnd = len(htmlContent)
+		}
+		searchContent := htmlContent[searchStart:searchEnd]
+
+		categoryMatch := categoryRe.FindStringSubmatch(searchContent)
+		if len(categoryMatch) > 1 {
+			category := strings.TrimSpace(cleanHTML(categoryMatch[1]))
+			// HTML tag'lerini ve gereksiz karakterleri temizle
+			category = regexp.MustCompile(`<[^>]+>`).ReplaceAllString(category, "")
+			category = regexp.MustCompile(`-->.*$`).ReplaceAllString(category, "") // "--> ..." kısmını kaldır
+			category = regexp.MustCompile(`\s+`).ReplaceAllString(category, " ")   // Çoklu boşlukları tek boşluğa çevir
+			category = strings.TrimSpace(category)
+
+			// Gereksiz metinleri filtrele
+			if category != "" && !strings.Contains(strings.ToLower(category), "listesi buraya") {
+				info.Category = category
+			}
+		}
 	}
 
 	// Fotoğraf URL'ini çek: /html/body/div[3]/div[3]/div[2]/div[2]/div[1]/div/div[1]/div/img
@@ -190,24 +226,30 @@ func BulkImportB2BProducts(cfg *config.Config, prefix string, startNum int, endN
 	imported := 0
 	skipped := 0
 	errors := make([]string, 0)
+	total := endNum - startNum + 1
+
+	log.Printf("Bulk import başladı: %s%04d-%s%04d (toplam %d ürün)", prefix, startNum, prefix, endNum, total)
 
 	for num := startNum; num <= endNum; num++ {
 		// Stock code oluştur (örn: TM0001, CD0123)
 		stockCode := fmt.Sprintf("%s%04d", prefix, num)
-		
+
+		// Her 100 üründe bir ilerleme log'u
+		if (num-startNum+1)%100 == 0 || num == startNum || num == endNum {
+			progress := float64(num-startNum+1) / float64(total) * 100
+			log.Printf("İlerleme: %d/%d (%.1f%%) - Imported: %d, Skipped: %d", num-startNum+1, total, progress, imported, skipped)
+		}
+
 		// Önce veritabanında kontrol et (isim veya stok kodu ile)
 		var existingByName models.Product
 		var existingByStockCode models.Product
-		
+
 		db := database.DB
-		
-		// İsim kontrolü - önce sayfadan çekmeden kontrol yapalım
-		// Ama ismi sayfadan çekmeden bilemeyiz, o yüzden sayfayı çekip sonra kontrol edelim
-		
+
 		// Sayfayı scrape et
 		productInfo, err := ScrapeB2BProductPage(stockCode)
 		if err != nil {
-			// Hata sayfası veya ürün yok - skip
+			// Hata sayfası veya ürün yok - skip (log'lamıyoruz, çok fazla olur)
 			skipped++
 			continue
 		}
@@ -237,23 +279,33 @@ func BulkImportB2BProducts(cfg *config.Config, prefix string, startNum int, endN
 		}
 
 		if err := db.Create(&product).Error; err != nil {
-			errors = append(errors, fmt.Sprintf("%s: Veritabanı hatası - %v", stockCode, err))
+			errMsg := fmt.Sprintf("%s: Veritabanı hatası - %v", stockCode, err)
+			errors = append(errors, errMsg)
+			log.Printf("HATA: %s", errMsg)
 			skipped++
 			continue
 		}
+
+		log.Printf("Ürün eklendi: %s - %s", stockCode, productInfo.Name)
 
 		// Fotoğrafı indir (eğer varsa)
 		if productInfo.ImageURL != "" {
 			_, err := downloadImageFromURL(productInfo.ImageURL, productInfo.StockCode, cfg.ProductImagePath)
 			if err != nil {
 				// Fotoğraf indirme hatası kritik değil, log'la ama devam et
-				errors = append(errors, fmt.Sprintf("%s: Fotoğraf indirilemedi - %v", stockCode, err))
+				errMsg := fmt.Sprintf("%s: Fotoğraf indirilemedi - %v", stockCode, err)
+				errors = append(errors, errMsg)
+				log.Printf("UYARI: %s", errMsg)
+			} else {
+				log.Printf("Fotoğraf indirildi: %s.jpg", stockCode)
 			}
 		} else {
 			// Fotoğraf yoksa DownloadProductImage fonksiyonunu dene (eski yöntem)
 			_, err := DownloadProductImage(productInfo.StockCode, cfg.ProductImagePath)
 			if err != nil {
-				// Fotoğraf yok, kritik değil
+				// Fotoğraf yok, kritik değil (log'lamıyoruz)
+			} else {
+				log.Printf("Fotoğraf indirildi (eski yöntem): %s.jpg", stockCode)
 			}
 		}
 
@@ -265,6 +317,7 @@ func BulkImportB2BProducts(cfg *config.Config, prefix string, startNum int, endN
 		}
 	}
 
+	log.Printf("Bulk import tamamlandı: %d imported, %d skipped, %d errors", imported, skipped, len(errors))
 	return imported, skipped, errors
 }
 
@@ -326,4 +379,3 @@ func downloadImageFromURL(imageURL string, stockCode string, savePath string) (s
 
 	return filePath, nil
 }
-
