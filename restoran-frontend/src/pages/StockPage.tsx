@@ -95,7 +95,7 @@ export const StockPage: React.FC = () => {
   const [showReport, setShowReport] = useState(false);
   const [showEntriesHistory, setShowEntriesHistory] = useState(false);
   const [showCurrentStock, setShowCurrentStock] = useState(false);
-  const [entriesHistoryDateFilter, setEntriesHistoryDateFilter] = useState<string>("");
+  const [entriesHistoryDateFilter, setEntriesHistoryDateFilter] = useState<string>(new Date().toISOString().split("T")[0]);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split("T")[0],
@@ -439,6 +439,7 @@ export const StockPage: React.FC = () => {
           <button
             onClick={() => {
               fetchStockEntries();
+              setEntriesHistoryDateFilter(new Date().toISOString().split("T")[0]);
               setShowEntriesHistory(true);
             }}
             className="px-6 py-3 md:px-8 md:py-4 rounded-xl text-sm md:text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl w-full md:min-w-[200px] md:max-w-[250px] whitespace-normal text-center break-words"
@@ -683,7 +684,7 @@ export const StockPage: React.FC = () => {
         isOpen={showEntriesHistory}
         onClose={() => {
           setShowEntriesHistory(false);
-          setEntriesHistoryDateFilter("");
+          setEntriesHistoryDateFilter(new Date().toISOString().split("T")[0]);
         }}
         title="Geçmiş Stok Girişleri"
         maxWidth="xl"
@@ -697,12 +698,12 @@ export const StockPage: React.FC = () => {
               onChange={(e) => setEntriesHistoryDateFilter(e.target.value)}
               className="bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
             />
-            {entriesHistoryDateFilter && (
+            {entriesHistoryDateFilter !== new Date().toISOString().split("T")[0] && (
               <button
-                onClick={() => setEntriesHistoryDateFilter("")}
+                onClick={() => setEntriesHistoryDateFilter(new Date().toISOString().split("T")[0])}
                 className="px-3 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm text-[#222222] transition-colors"
               >
-                Temizle
+                Bugüne Dön
               </button>
             )}
           </div>
