@@ -66,23 +66,39 @@ func DownloadProductImage(stockCode string, savePath string) (string, error) {
 
 	htmlContent := string(htmlBytes)
 
-	// Ürün fotoğrafını bul: Sadece /ProductImages/ path'ine sahip img'leri çek
+	// Ürün fotoğrafını bul: Sadece /ProductImages/STOKKODU/... formatındaki img'leri çek
 	var imageURL string
 	
-	// /ProductImages/ path'ine sahip img'leri ara
-	productImagesRe := regexp.MustCompile(`<img[^>]+src=["'](/ProductImages/[^"']+)["'][^>]*>`)
-	productImagesMatch := productImagesRe.FindStringSubmatch(htmlContent)
+	// Önce product-img class'ına sahip img'leri ara (en güvenilir)
+	productImgRe := regexp.MustCompile(`<img[^>]*class=["'][^"']*product-img[^"']*["'][^>]+src=["']([^"']+)["'][^>]*>`)
+	productImgMatches := productImgRe.FindAllStringSubmatch(htmlContent, -1)
 	
-	if len(productImagesMatch) > 1 {
-		src := productImagesMatch[1]
+	for _, match := range productImgMatches {
+		if len(match) > 1 {
+			src := match[1]
+			// /ProductImages/ ile başlayan ve stok kodunu içeren path'i kontrol et
+			if strings.HasPrefix(src, "/ProductImages/") && strings.Contains(src, stockCode) {
+				imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
+				break
+			}
+		}
+	}
+	
+	// Eğer product-img class'ı bulunamadıysa, /ProductImages/STOKKODU/ formatındaki img'leri ara
+	if imageURL == "" {
+		// /ProductImages/STOKKODU/... formatını doğrudan ara
+		productImagesPattern := fmt.Sprintf(`/ProductImages/%s/[^"']+`, regexp.QuoteMeta(stockCode))
+		productImagesRe := regexp.MustCompile(`<img[^>]+src=["'](` + productImagesPattern + `)["'][^>]*>`)
+		productImagesMatches := productImagesRe.FindAllStringSubmatch(htmlContent, -1)
 		
-		// Tam URL oluştur
-		if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
-			imageURL = src
-		} else if strings.HasPrefix(src, "/") {
-			imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
-		} else {
-			imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
+		for _, match := range productImagesMatches {
+			if len(match) > 1 {
+				src := match[1]
+				if strings.HasPrefix(src, "/ProductImages/") {
+					imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
+					break
+				}
+			}
 		}
 	}
 
