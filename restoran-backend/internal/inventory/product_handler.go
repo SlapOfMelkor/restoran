@@ -14,18 +14,21 @@ type ProductResponse struct {
 	Name      string `json:"name"`
 	Unit      string `json:"unit"`
 	StockCode string `json:"stock_code"`
+	Category  string `json:"category"`
 }
 
 type CreateProductRequest struct {
 	Name      string `json:"name"`
 	Unit      string `json:"unit"`
 	StockCode string `json:"stock_code"` // Opsiyonel
+	Category  string `json:"category"`   // Opsiyonel
 }
 
 type UpdateProductRequest struct {
 	Name      *string `json:"name"`
 	Unit      *string `json:"unit"`
 	StockCode *string `json:"stock_code"` // Opsiyonel
+	Category  *string `json:"category"`   // Opsiyonel
 }
 
 // GET /api/products (tüm authenticated kullanıcılar görebilir)
@@ -43,6 +46,7 @@ func ListProductsHandler() fiber.Handler {
 				Name:      p.Name,
 				Unit:      p.Unit,
 				StockCode: p.StockCode,
+				Category:  p.Category,
 			})
 		}
 		return c.JSON(res)
@@ -60,6 +64,7 @@ func CreateProductHandler() fiber.Handler {
 		body.Name = strings.TrimSpace(body.Name)
 		body.Unit = strings.TrimSpace(body.Unit)
 		body.StockCode = strings.TrimSpace(body.StockCode)
+		body.Category = strings.TrimSpace(body.Category)
 
 		if body.Name == "" || body.Unit == "" {
 			return fiber.NewError(fiber.StatusBadRequest, "Name ve unit zorunlu")
@@ -77,6 +82,7 @@ func CreateProductHandler() fiber.Handler {
 			Name:            body.Name,
 			Unit:            body.Unit,
 			StockCode:       body.StockCode,
+			Category:        body.Category,
 			IsCenterProduct: true, // Normal ürün yönetimi için her zaman true
 		}
 
@@ -89,6 +95,7 @@ func CreateProductHandler() fiber.Handler {
 			Name:      p.Name,
 			Unit:      p.Unit,
 			StockCode: p.StockCode,
+			Category:  p.Category,
 		})
 	}
 }
@@ -124,6 +131,14 @@ func UpdateProductHandler() fiber.Handler {
 			p.Unit = unit
 		}
 
+		if body.StockCode != nil {
+			p.StockCode = strings.TrimSpace(*body.StockCode)
+		}
+
+		if body.Category != nil {
+			p.Category = strings.TrimSpace(*body.Category)
+		}
+
 		if err := database.DB.Save(&p).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Ürün güncellenemedi")
 		}
@@ -133,6 +148,7 @@ func UpdateProductHandler() fiber.Handler {
 			Name:      p.Name,
 			Unit:      p.Unit,
 			StockCode: p.StockCode,
+			Category:  p.Category,
 		})
 	}
 }
