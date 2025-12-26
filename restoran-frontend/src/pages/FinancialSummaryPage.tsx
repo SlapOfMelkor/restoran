@@ -142,7 +142,7 @@ export const FinancialSummaryPage: React.FC = () => {
               <label className="block text-xs text-[#222222] mb-1">Başlangıç Tarihi</label>
               <input
                 type="date"
-                value={dailyRange.from}
+                value={dailyRange.from || new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split("T")[0]}
                 onChange={(e) => setDailyRange({ ...dailyRange, from: e.target.value })}
                 className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
               />
@@ -151,7 +151,7 @@ export const FinancialSummaryPage: React.FC = () => {
               <label className="block text-xs text-[#222222] mb-1">Bitiş Tarihi</label>
               <input
                 type="date"
-                value={dailyRange.to}
+                value={dailyRange.to || new Date().toISOString().split("T")[0]}
                 onChange={(e) => setDailyRange({ ...dailyRange, to: e.target.value })}
                 className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
               />

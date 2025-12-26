@@ -248,7 +248,7 @@ export const CenterShipmentsPage: React.FC = () => {
               <label className="block text-xs text-[#222222] mb-1">Tarih</label>
               <input
                 type="date"
-                value={formData.date}
+                value={formData.date || new Date().toISOString().split("T")[0]}
                 onChange={(e) =>
                   setFormData({ ...formData, date: e.target.value })
                 }

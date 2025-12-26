@@ -545,7 +545,7 @@ export const StockPage: React.FC = () => {
             <label className="block text-xs text-[#555555] mb-1">Sayım Tarihi</label>
             <input
               type="date"
-              value={formData.date}
+              value={formData.date || new Date().toISOString().split("T")[0]}
               onChange={(e) => setFormData({ ...formData, date: e.target.value })}
               className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
               required

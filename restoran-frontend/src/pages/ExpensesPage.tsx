@@ -682,7 +682,7 @@ export const ExpensesPage: React.FC = () => {
                   <label className="block text-xs text-[#555555] mb-1">Tarih</label>
                   <input
                     type="date"
-                    value={expenseFormData.date}
+                    value={expenseFormData.date || new Date().toISOString().split("T")[0]}
                     onChange={(e) =>
                       setExpenseFormData({
                         ...expenseFormData,
@@ -755,7 +755,7 @@ export const ExpensesPage: React.FC = () => {
                   <label className="block text-xs text-[#555555] mb-1">Tarih</label>
                   <input
                     type="date"
-                    value={paymentFormData.date}
+                    value={paymentFormData.date || new Date().toISOString().split("T")[0]}
                     onChange={(e) =>
                       setPaymentFormData({
                         ...paymentFormData,

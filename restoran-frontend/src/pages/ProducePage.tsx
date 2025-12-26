@@ -754,7 +754,7 @@ export const ProducePage: React.FC = () => {
                 </label>
                 <input
                   type="date"
-                  value={purchaseFormData.date}
+                  value={purchaseFormData.date || new Date().toISOString().split("T")[0]}
                   onChange={(e) =>
                     setPurchaseFormData({
                       ...purchaseFormData,
@@ -853,7 +853,7 @@ export const ProducePage: React.FC = () => {
                 </label>
                 <input
                   type="date"
-                  value={paymentFormData.date}
+                  value={paymentFormData.date || new Date().toISOString().split("T")[0]}
                   onChange={(e) =>
                     setPaymentFormData({
                       ...paymentFormData,
@@ -1000,7 +1000,7 @@ export const ProducePage: React.FC = () => {
               </label>
               <input
                 type="date"
-                value={wasteFormData.date}
+                value={wasteFormData.date || new Date().toISOString().split("T")[0]}
                 onChange={(e) =>
                   setWasteFormData({
                     ...wasteFormData,
