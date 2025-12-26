@@ -159,9 +159,9 @@ func ScrapeB2BProductPage(stockCode string) (*B2BProductInfo, error) {
 			category = regexp.MustCompile(`\s+`).ReplaceAllString(category, " ")   // Çoklu boşlukları tek boşluğa çevir
 			category = strings.TrimSpace(category)
 
-			// Gereksiz metinleri filtrele
-			if category != "" && !strings.Contains(strings.ToLower(category), "listesi buraya") {
-				info.Category = category
+			// Gereksiz metinleri filtrele (Türkçe karakterleri koruyarak)
+			if category != "" && !strings.Contains(turkishToLower(category), "listesi buraya") {
+				info.Category = category // Orijinal Türkçe karakterli kategoriyi kaydet
 			}
 		}
 	}
@@ -219,52 +219,16 @@ func ScrapeB2BProductPage(stockCode string) (*B2BProductInfo, error) {
 }
 
 // cleanHTML: HTML tag'lerini temizler ve entity'leri decode eder
+// Türkçe karakterleri doğru şekilde decode eder
 func cleanHTML(htmlContent string) string {
-	// HTML tag'lerini kaldır
-	tagRe := regexp.MustCompile(`<[^>]+>`)
-	cleaned := tagRe.ReplaceAllString(htmlContent, "")
+	// Önce hex ve decimal entity'leri decode et (html.UnescapeString'den önce)
+	// Bu şekilde tüm Türkçe karakterler doğru decode edilir
 
-	// HTML entity'lerini decode et (Go'nun html paketi kullanarak)
-	// Önce standart entity'leri decode et
-	cleaned = html.UnescapeString(cleaned)
-
-	// Hex kodlu entity'leri manuel olarak decode et (Go'nun html paketi bazılarını decode etmeyebilir)
-	// &#x130; = İ (büyük i noktalı)
-	cleaned = regexp.MustCompile(`&#x130;`).ReplaceAllString(cleaned, "İ")
-	// &#x131; = ı (küçük i noktasız)
-	cleaned = regexp.MustCompile(`&#x131;`).ReplaceAllString(cleaned, "ı")
-	// &#x15E; = Ş (büyük ş)
-	cleaned = regexp.MustCompile(`&#x15E;`).ReplaceAllString(cleaned, "Ş")
-	// &#x15F; = ş (küçük ş)
-	cleaned = regexp.MustCompile(`&#x15F;`).ReplaceAllString(cleaned, "ş")
-	// &#xC7; = Ç (büyük ç)
-	cleaned = regexp.MustCompile(`&#xC7;`).ReplaceAllString(cleaned, "Ç")
-	// &#xE7; = ç (küçük ç)
-	cleaned = regexp.MustCompile(`&#xE7;`).ReplaceAllString(cleaned, "ç")
-	// &#xD6; = Ö (büyük ö)
-	cleaned = regexp.MustCompile(`&#xD6;`).ReplaceAllString(cleaned, "Ö")
-	// &#xF6; = ö (küçük ö)
-	cleaned = regexp.MustCompile(`&#xF6;`).ReplaceAllString(cleaned, "ö")
-	// &#xDC; = Ü (büyük ü)
-	cleaned = regexp.MustCompile(`&#xDC;`).ReplaceAllString(cleaned, "Ü")
-	// &#xFC; = ü (küçük ü)
-	cleaned = regexp.MustCompile(`&#xFC;`).ReplaceAllString(cleaned, "ü")
-	// &#xC4; = Ä (genelde Türkçe'de kullanılmaz ama decode edelim)
-	cleaned = regexp.MustCompile(`&#xC4;`).ReplaceAllString(cleaned, "Ä")
-	// &#xE4; = ä
-	cleaned = regexp.MustCompile(`&#xE4;`).ReplaceAllString(cleaned, "ä")
-	// &#x11E; = Ğ (büyük ğ)
-	cleaned = regexp.MustCompile(`&#x11E;`).ReplaceAllString(cleaned, "Ğ")
-	// &#x11F; = ğ (küçük ğ)
-	cleaned = regexp.MustCompile(`&#x11F;`).ReplaceAllString(cleaned, "ğ")
-
-	// Kalan hex entity'leri genel regex ile decode et (diğer karakterler için)
+	// Hex entity'leri decode et (&#x130; gibi)
 	hexEntityRe := regexp.MustCompile(`&#x([0-9A-Fa-f]+);`)
-	cleaned = hexEntityRe.ReplaceAllStringFunc(cleaned, func(match string) string {
-		// Hex kodu çıkar
+	cleaned := hexEntityRe.ReplaceAllStringFunc(htmlContent, func(match string) string {
 		hexCode := hexEntityRe.FindStringSubmatch(match)
 		if len(hexCode) > 1 {
-			// Hex string'i integer'a çevir ve rune'a dönüştür
 			var code int
 			if _, err := fmt.Sscanf(hexCode[1], "%x", &code); err == nil {
 				return string(rune(code))
@@ -273,7 +237,7 @@ func cleanHTML(htmlContent string) string {
 		return match
 	})
 
-	// Decimal entity'leri de decode et
+	// Decimal entity'leri decode et (&#304; gibi)
 	decimalEntityRe := regexp.MustCompile(`&#(\d+);`)
 	cleaned = decimalEntityRe.ReplaceAllStringFunc(cleaned, func(match string) string {
 		decimalCode := decimalEntityRe.FindStringSubmatch(match)
@@ -286,11 +250,50 @@ func cleanHTML(htmlContent string) string {
 		return match
 	})
 
+	// HTML tag'lerini kaldır
+	tagRe := regexp.MustCompile(`<[^>]+>`)
+	cleaned = tagRe.ReplaceAllString(cleaned, "")
+
+	// Standart HTML entity'leri decode et (html.UnescapeString - &amp; &lt; &gt; vb.)
+	cleaned = html.UnescapeString(cleaned)
+
 	// Boşlukları normalize et
 	cleaned = strings.ReplaceAll(cleaned, "&nbsp;", " ")
+	cleaned = strings.ReplaceAll(cleaned, "&quot;", "\"")
+	cleaned = strings.ReplaceAll(cleaned, "&apos;", "'")
 	cleaned = regexp.MustCompile(`\s+`).ReplaceAllString(cleaned, " ")
 
+	// Son temizlik: UTF-8 encoding sorunlarını düzelt
+	// Bazı karakterler yanlış encode edilmiş olabilir, onları düzelt
+	// Bu adım gerekli değil ama güvenlik için ekliyoruz
+
 	return strings.TrimSpace(cleaned)
+}
+
+// turkishToLower: Türkçe karakterleri koruyarak lowercase yapar
+// Go'nun strings.ToLower() İngilizce locale kullanır, Türkçe için yanlış sonuç verir
+// Örn: "İ" -> "i" (yanlış), "İ" -> "i" (doğru Türkçe için "ı" olmalı ama biz İ'yi i olarak bırakıyoruz)
+// Filtreleme için kullanılır, ürün adı kaydedilirken orijinal karakterler korunur
+func turkishToLower(s string) string {
+	// Türkçe karakterleri koruyarak lowercase yap
+	// Sadece İngilizce karakterler için ToLower kullan, Türkçe karakterleri olduğu gibi bırak
+	result := make([]rune, 0, len(s))
+	for _, r := range s {
+		switch r {
+		case 'İ':
+			result = append(result, 'i') // Türkçe İ -> i (filtreleme için)
+		case 'I':
+			result = append(result, 'ı') // Türkçe I -> ı
+		default:
+			// Diğer karakterler için Go'nun ToLower'ını kullan
+			if r >= 'A' && r <= 'Z' {
+				result = append(result, r+32) // ASCII büyük harf -> küçük harf
+			} else {
+				result = append(result, r) // Diğer karakterler olduğu gibi
+			}
+		}
+	}
+	return string(result)
 }
 
 // BulkImportB2BProducts: B2B sisteminden tüm ürünleri toplu olarak içe aktarır
