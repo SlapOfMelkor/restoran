@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
 import { Modal } from "../components/Modal";
+import axios from "axios";
 
 interface Product {
   id: number;
@@ -173,10 +174,21 @@ export const ProductsPage: React.FC = () => {
       setShowBulkImportModal(false);
       fetchProducts();
     } catch (err: any) {
-      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
-        alert("İçe aktarma iptal edildi");
+      // Axios cancellation kontrolü
+      if (axios.isCancel(err) || err.name === 'CanceledError' || err.code === 'ERR_CANCELED' || err.message?.includes('canceled')) {
+        setBulkImportProgress("İçe aktarma iptal edildi.");
+        // İptal edildiğinde backend'e de sinyal gidecek (AbortController sayesinde)
+        // Ama kullanıcıya hemen bilgi verelim
+        console.log("İçe aktarma iptal edildi (frontend)");
+      } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        // Timeout durumu - backend hala çalışıyor olabilir
+        setBulkImportProgress("Bağlantı hatası oluştu. Backend işlemi devam ediyor olabilir.");
+        alert("Bağlantı zaman aşımına uğradı. İşlem backend'de devam ediyor olabilir. Lütfen logları kontrol edin.");
       } else {
-        alert(err.response?.data?.error || "Toplu içe aktarma başarısız");
+        // Diğer hatalar
+        setBulkImportProgress("Toplu içe aktarma başarısız oldu.");
+        const errorMsg = err.response?.data?.error || err.message || "Toplu içe aktarma başarısız";
+        alert(errorMsg);
       }
     } finally {
       setBulkImportLoading(false);

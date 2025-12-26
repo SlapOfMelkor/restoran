@@ -67,54 +67,75 @@ func DownloadProductImage(stockCode string, savePath string) (string, error) {
 	htmlContent := string(htmlBytes)
 
 	// Ürün fotoğrafını bul
-	// XPath: /html/body/div[3]/div[3]/div[2]/div[2]/div[1]/div/div[1]/div/img
-	// Sayfada "Ürün Detayı" bölümünü bul ve oradaki img tag'ini al
+	// class="img-fluid product-img" olan img tag'ini bul
+	// veya /ProductImages/ path'ine sahip img'leri bul
 	
-	// Önce "Ürün Detayı" bölümünü bul
-	productDetailRe := regexp.MustCompile(`(?i)ürün\s+detayı`)
-	detailIndex := productDetailRe.FindStringIndex(htmlContent)
-	
-	// Eğer "Ürün Detayı" bulunamazsa, tüm sayfada ara
-	searchContent := htmlContent
-	if detailIndex != nil {
-		// "Ürün Detayı" bölümünden sonraki 5000 karakteri al
-		start := detailIndex[0]
-		if start+5000 < len(htmlContent) {
-			searchContent = htmlContent[start : start+5000]
-		} else {
-			searchContent = htmlContent[start:]
-		}
-	}
-
-	// img tag'lerini bul
-	imgRe := regexp.MustCompile(`<img[^>]+src=["']([^"']+)["'][^>]*>`)
-	imgMatches := imgRe.FindAllStringSubmatch(searchContent, -1)
-
 	var imageURL string
-	for _, match := range imgMatches {
-		if len(match) < 2 {
-			continue
-		}
-		src := match[1]
+	
+	// Önce "product-img" class'ına sahip img tag'ini ara
+	productImgRe := regexp.MustCompile(`<img[^>]*class=["'][^"']*product-img[^"']*["'][^>]+src=["']([^"']+)["'][^>]*>`)
+	productImgMatch := productImgRe.FindStringSubmatch(htmlContent)
+	
+	if len(productImgMatch) > 1 {
+		src := productImgMatch[1]
 		
-		// Placeholder, icon, logo gibi olmayan gerçek fotoğraf URL'ini bul
-		if strings.Contains(strings.ToLower(src), "placeholder") || 
-		   strings.Contains(strings.ToLower(src), "icon") || 
-		   strings.Contains(strings.ToLower(src), "logo") ||
-		   strings.Contains(strings.ToLower(src), "avatar") {
-			continue
-		}
-
 		// Tam URL oluştur
 		if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
 			imageURL = src
 		} else if strings.HasPrefix(src, "/") {
 			imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
 		} else {
-			// Relatif path ise
-			imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr/Store/Detail/%s/%s", stockCode, src)
+			imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
 		}
-		break // İlk geçerli fotoğrafı bulduk
+	} else {
+		// product-img class'ı yoksa, /ProductImages/ path'ine sahip img'leri ara
+		productImagesRe := regexp.MustCompile(`<img[^>]+src=["'](/ProductImages/[^"']+)["'][^>]*>`)
+		productImagesMatch := productImagesRe.FindStringSubmatch(htmlContent)
+		
+		if len(productImagesMatch) > 1 {
+			src := productImagesMatch[1]
+			
+			// Tam URL oluştur
+			if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
+				imageURL = src
+			} else if strings.HasPrefix(src, "/") {
+				imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
+			} else {
+				imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
+			}
+		} else {
+			// Son çare: tüm img'leri ara ama avatar, icon, logo gibi olmayanları filtrele
+			imgRe := regexp.MustCompile(`<img[^>]+src=["']([^"']+)["'][^>]*>`)
+			imgMatches := imgRe.FindAllStringSubmatch(htmlContent, -1)
+
+			for _, match := range imgMatches {
+				if len(match) < 2 {
+					continue
+				}
+				src := match[1]
+
+				// Placeholder, icon, logo, avatar gibi olmayan gerçek fotoğraf URL'ini bul
+				srcLower := strings.ToLower(src)
+				if strings.Contains(srcLower, "placeholder") ||
+					strings.Contains(srcLower, "icon") ||
+					strings.Contains(srcLower, "logo") ||
+					strings.Contains(srcLower, "avatar") ||
+					strings.Contains(srcLower, "user") ||
+					strings.Contains(srcLower, "profile") {
+					continue
+				}
+
+				// /ProductImages/ içerenleri tercih et
+				if strings.Contains(src, "/ProductImages/") {
+					if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
+						imageURL = src
+					} else if strings.HasPrefix(src, "/") {
+						imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
+					}
+					break
+				}
+			}
+		}
 	}
 
 	if imageURL == "" {
