@@ -135,11 +135,23 @@ export const StockPage: React.FC = () => {
   const fetchProducts = async () => {
     try {
       const res = await apiClient.get("/products", { params: { is_center_product: "true" } });
-      setProducts(res.data);
+      const fetchedProducts: Product[] = res.data;
+      setProducts(fetchedProducts);
+      
+      // Mevcut ürün ID'lerini bir set'te topla (hızlı kontrol için)
+      const existingProductIDs = new Set(fetchedProducts.map((p: Product) => p.id));
+      
+      // stockItems içindeki silinmiş ürünleri filtrele
+      if (stockItems.length > 0) {
+        const validStockItems = stockItems.filter(item => existingProductIDs.has(item.product_id));
+        if (validStockItems.length !== stockItems.length) {
+          setStockItems(validStockItems);
+        }
+      }
       
       // Eğer stockItems boşsa, tüm ürünleri ekle
-      if (stockItems.length === 0 && res.data.length > 0) {
-        const items: StockEntryItem[] = res.data.map((product: Product) => ({
+      if (stockItems.length === 0 && fetchedProducts.length > 0) {
+        const items: StockEntryItem[] = fetchedProducts.map((product: Product) => ({
           product_id: product.id,
           product_name: product.name,
           stock_code: product.stock_code,

@@ -250,12 +250,20 @@ func GetCurrentStockHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler listelenemedi")
 		}
 
-		// Sıralama bilgisini al (varsa)
+		// Sıralama bilgisini al (varsa) - sadece mevcut ürünler için
 		var orderMap map[uint]int = make(map[uint]int)
 		var branchOrders []models.BranchProductOrder
 		if err := database.DB.Where("branch_id = ?", branchID).Find(&branchOrders).Error; err == nil {
+			// Mevcut ürün ID'lerini bir map'te topla (hızlı kontrol için)
+			existingProductIDs := make(map[uint]bool)
+			for _, product := range products {
+				existingProductIDs[product.ID] = true
+			}
+			// Sadece mevcut ürünler için sıralama bilgisini ekle
 			for _, order := range branchOrders {
-				orderMap[order.ProductID] = order.OrderIndex
+				if existingProductIDs[order.ProductID] {
+					orderMap[order.ProductID] = order.OrderIndex
+				}
 			}
 		}
 

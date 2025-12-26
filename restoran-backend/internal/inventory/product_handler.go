@@ -163,8 +163,15 @@ func DeleteProductHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		id := c.Params("id")
 
+		// Önce ürünle ilişkili BranchProductOrder kayıtlarını sil (foreign key constraint'i için)
+		if err := database.DB.Where("product_id = ?", id).Delete(&models.BranchProductOrder{}).Error; err != nil {
+			log.Printf("BranchProductOrder kayıtları silinirken hata: %v", err)
+			// Devam et, kritik değil ama log'la
+		}
+
+		// Ürünü sil
 		if err := database.DB.Delete(&models.Product{}, "id = ?", id).Error; err != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, "Ürün silinemedi")
+			return fiber.NewError(fiber.StatusInternalServerError, "Ürün silinemedi: "+err.Error())
 		}
 
 		return c.SendStatus(fiber.StatusNoContent)
@@ -195,9 +202,15 @@ func DeleteAllProductsHandler(cfg *config.Config) fiber.Handler {
 			}
 		}
 
+		// Önce tüm BranchProductOrder kayıtlarını sil (foreign key constraint'i için)
+		if err := database.DB.Exec("DELETE FROM branch_product_orders").Error; err != nil {
+			log.Printf("BranchProductOrder kayıtları silinirken hata: %v", err)
+			// Devam et, kritik değil ama log'la
+		}
+
 		// Tüm ürünleri veritabanından sil
 		if err := database.DB.Exec("DELETE FROM products").Error; err != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler silinemedi")
+			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler silinemedi: "+err.Error())
 		}
 
 		log.Printf("Tüm ürünler silindi. %d fotoğraf silindi.", deletedImages)
