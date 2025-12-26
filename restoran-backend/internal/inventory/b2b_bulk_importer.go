@@ -166,18 +166,15 @@ func ScrapeB2BProductPage(stockCode string) (*B2BProductInfo, error) {
 		}
 	}
 
-	// Fotoğraf URL'ini çek: image_downloader.go'daki aynı yöntemi kullan
-	// class="img-fluid product-img" olan img tag'ini bul
-	// veya /ProductImages/ path'ine sahip img'leri bul
-
+	// Fotoğraf URL'ini çek: Sadece /ProductImages/ path'ine sahip img'leri çek
 	var imageURL string
 
-	// Önce "product-img" class'ına sahip img tag'ini ara
-	productImgRe := regexp.MustCompile(`<img[^>]*class=["'][^"']*product-img[^"']*["'][^>]+src=["']([^"']+)["'][^>]*>`)
-	productImgMatch := productImgRe.FindStringSubmatch(htmlContent)
+	// /ProductImages/ path'ine sahip img'leri ara
+	productImagesRe := regexp.MustCompile(`<img[^>]+src=["'](/ProductImages/[^"']+)["'][^>]*>`)
+	productImagesMatch := productImagesRe.FindStringSubmatch(htmlContent)
 
-	if len(productImgMatch) > 1 {
-		src := productImgMatch[1]
+	if len(productImagesMatch) > 1 {
+		src := productImagesMatch[1]
 
 		// Tam URL oluştur
 		if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
@@ -186,55 +183,6 @@ func ScrapeB2BProductPage(stockCode string) (*B2BProductInfo, error) {
 			imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
 		} else {
 			imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
-		}
-	} else {
-		// product-img class'ı yoksa, /ProductImages/ path'ine sahip img'leri ara
-		productImagesRe := regexp.MustCompile(`<img[^>]+src=["'](/ProductImages/[^"']+)["'][^>]*>`)
-		productImagesMatch := productImagesRe.FindStringSubmatch(htmlContent)
-
-		if len(productImagesMatch) > 1 {
-			src := productImagesMatch[1]
-
-			// Tam URL oluştur
-			if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
-				imageURL = src
-			} else if strings.HasPrefix(src, "/") {
-				imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
-			} else {
-				imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
-			}
-		} else {
-			// Son çare: tüm img'leri ara ama avatar, icon, logo gibi olmayanları filtrele
-			imgRe := regexp.MustCompile(`<img[^>]+src=["']([^"']+)["'][^>]*>`)
-			imgMatches := imgRe.FindAllStringSubmatch(htmlContent, -1)
-
-			for _, match := range imgMatches {
-				if len(match) < 2 {
-					continue
-				}
-				src := match[1]
-
-				// Placeholder, icon, logo, avatar gibi olmayan gerçek fotoğraf URL'ini bul
-				srcLower := strings.ToLower(src)
-				if strings.Contains(srcLower, "placeholder") ||
-					strings.Contains(srcLower, "icon") ||
-					strings.Contains(srcLower, "logo") ||
-					strings.Contains(srcLower, "avatar") ||
-					strings.Contains(srcLower, "user") ||
-					strings.Contains(srcLower, "profile") {
-					continue
-				}
-
-				// /ProductImages/ içerenleri tercih et
-				if strings.Contains(src, "/ProductImages/") {
-					if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
-						imageURL = src
-					} else if strings.HasPrefix(src, "/") {
-						imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
-					}
-					break
-				}
-			}
 		}
 	}
 
