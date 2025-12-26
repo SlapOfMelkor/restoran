@@ -166,8 +166,12 @@ func ScrapeB2BProductPage(stockCode string) (*B2BProductInfo, error) {
 		}
 	}
 
-	// Fotoğraf URL'ini çek: class="img-fluid product-img" olan img tag'ini bul
-	// Selector: body > div.app-content... > div > img.product-img
+	// Fotoğraf URL'ini çek: image_downloader.go'daki aynı yöntemi kullan
+	// class="img-fluid product-img" olan img tag'ini bul
+	// veya /ProductImages/ path'ine sahip img'leri bul
+
+	var imageURL string
+
 	// Önce "product-img" class'ına sahip img tag'ini ara
 	productImgRe := regexp.MustCompile(`<img[^>]*class=["'][^"']*product-img[^"']*["'][^>]+src=["']([^"']+)["'][^>]*>`)
 	productImgMatch := productImgRe.FindStringSubmatch(htmlContent)
@@ -177,11 +181,11 @@ func ScrapeB2BProductPage(stockCode string) (*B2BProductInfo, error) {
 
 		// Tam URL oluştur
 		if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
-			info.ImageURL = src
+			imageURL = src
 		} else if strings.HasPrefix(src, "/") {
-			info.ImageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
+			imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
 		} else {
-			info.ImageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
+			imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
 		}
 	} else {
 		// product-img class'ı yoksa, /ProductImages/ path'ine sahip img'leri ara
@@ -193,11 +197,11 @@ func ScrapeB2BProductPage(stockCode string) (*B2BProductInfo, error) {
 
 			// Tam URL oluştur
 			if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
-				info.ImageURL = src
+				imageURL = src
 			} else if strings.HasPrefix(src, "/") {
-				info.ImageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
+				imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
 			} else {
-				info.ImageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
+				imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
 			}
 		} else {
 			// Son çare: tüm img'leri ara ama avatar, icon, logo gibi olmayanları filtrele
@@ -224,14 +228,19 @@ func ScrapeB2BProductPage(stockCode string) (*B2BProductInfo, error) {
 				// /ProductImages/ içerenleri tercih et
 				if strings.Contains(src, "/ProductImages/") {
 					if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
-						info.ImageURL = src
+						imageURL = src
 					} else if strings.HasPrefix(src, "/") {
-						info.ImageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
+						imageURL = fmt.Sprintf("https://b2b.cadininevi.com.tr%s", src)
 					}
 					break
 				}
 			}
 		}
+	}
+
+	// Bulunan URL'yi info'ya kaydet
+	if imageURL != "" {
+		info.ImageURL = imageURL
 	}
 
 	// Validasyon: En azından isim ve stok kodu olmalı
