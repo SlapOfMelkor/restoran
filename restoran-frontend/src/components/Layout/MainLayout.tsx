@@ -133,13 +133,23 @@ export const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }
           </NavLink>
 
           <NavLink
+            to="/trades"
+            className={({ isActive }) =>
+              `${navItemClass} ${isActive ? navItemActiveClass : ""}`
+            }
+            onClick={handleNavClick}
+          >
+            💼 Ticaret
+          </NavLink>
+
+          <NavLink
             to="/financial-summary"
             className={({ isActive }) =>
               `${navItemClass} ${isActive ? navItemActiveClass : ""}`
             }
             onClick={handleNavClick}
           >
-            💼 Finansal Özet
+            📊 Finansal Özet
           </NavLink>
 
           {user?.role === "super_admin" && (

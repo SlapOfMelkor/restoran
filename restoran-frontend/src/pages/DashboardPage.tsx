@@ -102,6 +102,18 @@ export const DashboardPage: React.FC = () => {
           </button>
 
           <button
+            onClick={() => navigate("/trades")}
+            className="flex flex-col items-center active:scale-[0.97] transition"
+          >
+            <div className={circleBase}>
+              <span className="text-2xl text-[#6a1b9a]">💼</span>
+            </div>
+            <span className={circleLabel}>
+              TİCARET
+            </span>
+          </button>
+
+          <button
             onClick={() => navigate("/financial-summary")}
             className="flex flex-col items-center active:scale-[0.97] transition"
           >

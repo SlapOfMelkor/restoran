@@ -9,6 +9,7 @@ import { CenterShipmentsPage } from "./pages/CenterShipmentsPage";
 import { ShipmentsPage } from "./pages/ShipmentsPage";
 import { StockPage } from "./pages/StockPage";
 import { ExpensesPage } from "./pages/ExpensesPage";
+import { TradesPage } from "./pages/TradesPage";
 import { FinancialSummaryPage } from "./pages/FinancialSummaryPage";
 import { AdminManagementPage } from "./pages/AdminManagementPage";
 import { BranchesPage } from "./pages/BranchesPage";
@@ -84,6 +85,17 @@ export const App: React.FC = () => {
           <ProtectedRoute>
             <MobileLayout>
               <ExpensesPage />
+            </MobileLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/trades"
+        element={
+          <ProtectedRoute>
+            <MobileLayout>
+              <TradesPage />
             </MobileLayout>
           </ProtectedRoute>
         }

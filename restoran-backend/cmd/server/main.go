@@ -15,6 +15,7 @@ import (
 	"restoran-backend/internal/inventory"
 	"restoran-backend/internal/models"
 	"restoran-backend/internal/produce"
+	"restoran-backend/internal/trade"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -163,6 +164,15 @@ func main() {
 	protected.Get("/produce-waste", produce.ListProduceWasteHandler())
 	protected.Put("/produce-waste/:id", produce.UpdateProduceWasteHandler())
 	protected.Delete("/produce-waste/:id", produce.DeleteProduceWasteHandler())
+
+	// Ticaret işlemleri (Alacak/Verecek)
+	protected.Post("/trades", trade.CreateTradeTransactionHandler())
+	protected.Get("/trades", trade.ListTradeTransactionsHandler())
+	protected.Put("/trades/:id", trade.UpdateTradeTransactionHandler())
+	protected.Delete("/trades/:id", trade.DeleteTradeTransactionHandler())
+	protected.Post("/trades/:id/payments", trade.CreateTradePaymentHandler())
+	protected.Get("/trades/:id/payments", trade.ListTradePaymentsHandler())
+	protected.Delete("/trades/:id/payments/:payment_id", trade.DeleteTradePaymentHandler())
 
 	// Genel finansal özet (eski)
 	protected.Get("/financial-summary/monthly", financial.MonthlyFinancialSummaryHandler())
