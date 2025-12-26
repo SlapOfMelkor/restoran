@@ -17,9 +17,10 @@ type BulkImportB2BProductsRequest struct {
 
 // BulkImportB2BProductsResponse: Toplu import yanıtı
 type BulkImportB2BProductsResponse struct {
-	Imported int      `json:"imported"` // İçe aktarılan ürün sayısı
-	Skipped  int      `json:"skipped"`  // Atlanan ürün sayısı
-	Errors   []string `json:"errors"`   // Hata mesajları
+	Imported int      `json:"imported"`  // İçe aktarılan ürün sayısı
+	Skipped  int      `json:"skipped"`   // Atlanan ürün sayısı
+	Errors   []string `json:"errors"`    // Hata mesajları
+	Cancelled bool    `json:"cancelled"` // İptal edildi mi?
 }
 
 // BulkImportB2BProductsHandler: B2B sisteminden toplu ürün içe aktarma endpoint'i
@@ -58,15 +59,24 @@ func BulkImportB2BProductsHandler(cfg *config.Config) fiber.Handler {
 
 		log.Printf("Bulk import başladı: %s%d-%s%d, delay: %dms", body.Prefix, body.Start, body.Prefix, body.End, body.DelayMs)
 
-		// Toplu import işlemini başlat
-		imported, skipped, errors := BulkImportB2BProducts(cfg, body.Prefix, body.Start, body.End, body.DelayMs)
+		// Fiber context'inden cancellation channel'ını al
+		ctx := c.Context()
+		cancelChan := ctx.Done()
 
-		log.Printf("Bulk import tamamlandı: %d imported, %d skipped, %d errors", imported, skipped, len(errors))
+		// Toplu import işlemini başlat (context ile - iptal edilebilir)
+		imported, skipped, errors, cancelled := BulkImportB2BProducts(cfg, body.Prefix, body.Start, body.End, body.DelayMs, cancelChan)
+
+		if cancelled {
+			log.Printf("Bulk import kullanıcı tarafından iptal edildi: %d imported, %d skipped, %d errors", imported, skipped, len(errors))
+		} else {
+			log.Printf("Bulk import tamamlandı: %d imported, %d skipped, %d errors", imported, skipped, len(errors))
+		}
 
 		return c.JSON(BulkImportB2BProductsResponse{
 			Imported: imported,
 			Skipped:  skipped,
 			Errors:   errors,
+			Cancelled: cancelled,
 		})
 	}
 }

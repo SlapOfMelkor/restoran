@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"fmt"
+	"html"
 	"io"
 	"log"
 	"net/http"
@@ -206,23 +207,84 @@ func ScrapeB2BProductPage(stockCode string) (*B2BProductInfo, error) {
 	return info, nil
 }
 
-// cleanHTML: HTML tag'lerini temizler
-func cleanHTML(html string) string {
+// cleanHTML: HTML tag'lerini temizler ve entity'leri decode eder
+func cleanHTML(htmlContent string) string {
 	// HTML tag'lerini kaldır
 	tagRe := regexp.MustCompile(`<[^>]+>`)
-	cleaned := tagRe.ReplaceAllString(html, "")
-	// HTML entity'lerini decode et
+	cleaned := tagRe.ReplaceAllString(htmlContent, "")
+
+	// HTML entity'lerini decode et (Go'nun html paketi kullanarak)
+	// Önce standart entity'leri decode et
+	cleaned = html.UnescapeString(cleaned)
+
+	// Hex kodlu entity'leri manuel olarak decode et (Go'nun html paketi bazılarını decode etmeyebilir)
+	// &#x130; = İ (büyük i noktalı)
+	cleaned = regexp.MustCompile(`&#x130;`).ReplaceAllString(cleaned, "İ")
+	// &#x131; = ı (küçük i noktasız)
+	cleaned = regexp.MustCompile(`&#x131;`).ReplaceAllString(cleaned, "ı")
+	// &#x15E; = Ş (büyük ş)
+	cleaned = regexp.MustCompile(`&#x15E;`).ReplaceAllString(cleaned, "Ş")
+	// &#x15F; = ş (küçük ş)
+	cleaned = regexp.MustCompile(`&#x15F;`).ReplaceAllString(cleaned, "ş")
+	// &#xC7; = Ç (büyük ç)
+	cleaned = regexp.MustCompile(`&#xC7;`).ReplaceAllString(cleaned, "Ç")
+	// &#xE7; = ç (küçük ç)
+	cleaned = regexp.MustCompile(`&#xE7;`).ReplaceAllString(cleaned, "ç")
+	// &#xD6; = Ö (büyük ö)
+	cleaned = regexp.MustCompile(`&#xD6;`).ReplaceAllString(cleaned, "Ö")
+	// &#xF6; = ö (küçük ö)
+	cleaned = regexp.MustCompile(`&#xF6;`).ReplaceAllString(cleaned, "ö")
+	// &#xDC; = Ü (büyük ü)
+	cleaned = regexp.MustCompile(`&#xDC;`).ReplaceAllString(cleaned, "Ü")
+	// &#xFC; = ü (küçük ü)
+	cleaned = regexp.MustCompile(`&#xFC;`).ReplaceAllString(cleaned, "ü")
+	// &#xC4; = Ä (genelde Türkçe'de kullanılmaz ama decode edelim)
+	cleaned = regexp.MustCompile(`&#xC4;`).ReplaceAllString(cleaned, "Ä")
+	// &#xE4; = ä
+	cleaned = regexp.MustCompile(`&#xE4;`).ReplaceAllString(cleaned, "ä")
+	// &#x11E; = Ğ (büyük ğ)
+	cleaned = regexp.MustCompile(`&#x11E;`).ReplaceAllString(cleaned, "Ğ")
+	// &#x11F; = ğ (küçük ğ)
+	cleaned = regexp.MustCompile(`&#x11F;`).ReplaceAllString(cleaned, "ğ")
+
+	// Kalan hex entity'leri genel regex ile decode et (diğer karakterler için)
+	hexEntityRe := regexp.MustCompile(`&#x([0-9A-Fa-f]+);`)
+	cleaned = hexEntityRe.ReplaceAllStringFunc(cleaned, func(match string) string {
+		// Hex kodu çıkar
+		hexCode := hexEntityRe.FindStringSubmatch(match)
+		if len(hexCode) > 1 {
+			// Hex string'i integer'a çevir ve rune'a dönüştür
+			var code int
+			if _, err := fmt.Sscanf(hexCode[1], "%x", &code); err == nil {
+				return string(rune(code))
+			}
+		}
+		return match
+	})
+
+	// Decimal entity'leri de decode et
+	decimalEntityRe := regexp.MustCompile(`&#(\d+);`)
+	cleaned = decimalEntityRe.ReplaceAllStringFunc(cleaned, func(match string) string {
+		decimalCode := decimalEntityRe.FindStringSubmatch(match)
+		if len(decimalCode) > 1 {
+			var code int
+			if _, err := fmt.Sscanf(decimalCode[1], "%d", &code); err == nil {
+				return string(rune(code))
+			}
+		}
+		return match
+	})
+
+	// Boşlukları normalize et
 	cleaned = strings.ReplaceAll(cleaned, "&nbsp;", " ")
-	cleaned = strings.ReplaceAll(cleaned, "&amp;", "&")
-	cleaned = strings.ReplaceAll(cleaned, "&lt;", "<")
-	cleaned = strings.ReplaceAll(cleaned, "&gt;", ">")
-	cleaned = strings.ReplaceAll(cleaned, "&quot;", "\"")
-	cleaned = strings.ReplaceAll(cleaned, "&#39;", "'")
+	cleaned = regexp.MustCompile(`\s+`).ReplaceAllString(cleaned, " ")
+
 	return strings.TrimSpace(cleaned)
 }
 
 // BulkImportB2BProducts: B2B sisteminden tüm ürünleri toplu olarak içe aktarır
-func BulkImportB2BProducts(cfg *config.Config, prefix string, startNum int, endNum int, delayMs int) (int, int, []string) {
+// cancelChan: İşlemi iptal etmek için channel (nil olabilir)
+func BulkImportB2BProducts(cfg *config.Config, prefix string, startNum int, endNum int, delayMs int, cancelChan <-chan struct{}) (int, int, []string, bool) {
 	imported := 0
 	skipped := 0
 	errors := make([]string, 0)
@@ -231,6 +293,16 @@ func BulkImportB2BProducts(cfg *config.Config, prefix string, startNum int, endN
 	log.Printf("Bulk import başladı: %s%04d-%s%04d (toplam %d ürün)", prefix, startNum, prefix, endNum, total)
 
 	for num := startNum; num <= endNum; num++ {
+		// Cancellation kontrolü
+		if cancelChan != nil {
+			select {
+			case <-cancelChan:
+				log.Printf("Bulk import iptal edildi: %d imported, %d skipped", imported, skipped)
+				return imported, skipped, errors, true
+			default:
+				// Devam et
+			}
+		}
 		// Stock code oluştur (örn: TM0001, CD0123)
 		stockCode := fmt.Sprintf("%s%04d", prefix, num)
 
@@ -311,14 +383,24 @@ func BulkImportB2BProducts(cfg *config.Config, prefix string, startNum int, endN
 
 		imported++
 
-		// Rate limiting - delay ekle
+		// Rate limiting - delay ekle (cancellation ile)
 		if delayMs > 0 {
-			time.Sleep(time.Duration(delayMs) * time.Millisecond)
+			if cancelChan != nil {
+				select {
+				case <-cancelChan:
+					log.Printf("Bulk import iptal edildi (delay sırasında): %d imported, %d skipped", imported, skipped)
+					return imported, skipped, errors, true
+				case <-time.After(time.Duration(delayMs) * time.Millisecond):
+					// Delay tamamlandı, devam et
+				}
+			} else {
+				time.Sleep(time.Duration(delayMs) * time.Millisecond)
+			}
 		}
 	}
 
 	log.Printf("Bulk import tamamlandı: %d imported, %d skipped, %d errors", imported, skipped, len(errors))
-	return imported, skipped, errors
+	return imported, skipped, errors, false
 }
 
 // downloadImageFromURL: Belirli bir URL'den resim indirir

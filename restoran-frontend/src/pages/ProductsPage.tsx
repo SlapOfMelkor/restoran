@@ -32,6 +32,7 @@ export const ProductsPage: React.FC = () => {
     delay_ms: 500,
   });
   const [bulkImportLoading, setBulkImportLoading] = useState(false);
+  const [bulkImportAbortController, setBulkImportAbortController] = useState<AbortController | null>(null);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -115,6 +116,24 @@ export const ProductsPage: React.FC = () => {
     }
   };
 
+  const handleDeleteAllProducts = async () => {
+    if (!confirm("TÜM ÜRÜNLERİ SİLMEK İSTEDİĞİNİZE EMİN MİSİNİZ? Bu işlem geri alınamaz!")) {
+      return;
+    }
+
+    if (!confirm("Bu işlem tüm ürünleri kalıcı olarak silecektir. Devam etmek istediğinize emin misiniz?")) {
+      return;
+    }
+
+    try {
+      await apiClient.delete("/admin/products");
+      alert("Tüm ürünler başarıyla silindi");
+      fetchProducts();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Ürünler silinemedi");
+    }
+  };
+
   const startEditProduct = (prod: Product) => {
     setEditingProduct(prod);
     setProductFormData({
@@ -132,19 +151,44 @@ export const ProductsPage: React.FC = () => {
       return;
     }
 
+    // AbortController oluştur
+    const abortController = new AbortController();
+    setBulkImportAbortController(abortController);
     setBulkImportLoading(true);
+
     try {
-      const res = await apiClient.post("/admin/products/bulk-import-b2b", bulkImportData);
-      alert(`Toplu içe aktarma tamamlandı!\nİçe aktarılan: ${res.data.imported}\nAtlanan: ${res.data.skipped}\nHata: ${res.data.errors.length}`);
+      const res = await apiClient.post("/admin/products/bulk-import-b2b", bulkImportData, {
+        signal: abortController.signal,
+        timeout: 0, // Timeout yok (uzun sürebilir) - axios'ta 0 = timeout yok
+      } as any);
+      
+      const message = res.data.cancelled
+        ? `Toplu içe aktarma iptal edildi!\nİçe aktarılan: ${res.data.imported}\nAtlanan: ${res.data.skipped}\nHata: ${res.data.errors.length}`
+        : `Toplu içe aktarma tamamlandı!\nİçe aktarılan: ${res.data.imported}\nAtlanan: ${res.data.skipped}\nHata: ${res.data.errors.length}`;
+      
+      alert(message);
       if (res.data.errors.length > 0) {
         console.error("Bulk import hataları:", res.data.errors);
       }
       setShowBulkImportModal(false);
       fetchProducts();
     } catch (err: any) {
-      alert(err.response?.data?.error || "Toplu içe aktarma başarısız");
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') {
+        alert("İçe aktarma iptal edildi");
+      } else {
+        alert(err.response?.data?.error || "Toplu içe aktarma başarısız");
+      }
     } finally {
       setBulkImportLoading(false);
+      setBulkImportAbortController(null);
+    }
+  };
+
+  const handleCancelBulkImport = () => {
+    if (bulkImportAbortController) {
+      bulkImportAbortController.abort();
+      setBulkImportLoading(false);
+      setBulkImportAbortController(null);
     }
   };
 
@@ -154,14 +198,22 @@ export const ProductsPage: React.FC = () => {
         <p className="text-xs text-[#222222]">
           Ürün bilgilerini yönetin
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {user?.role === "super_admin" && (
-            <button
-              onClick={() => setShowBulkImportModal(true)}
-              className="px-4 py-2 rounded-lg text-sm transition-colors bg-green-600 hover:bg-green-700 text-white"
-            >
-              B2B'den Toplu İçe Aktar
-            </button>
+            <>
+              <button
+                onClick={() => setShowBulkImportModal(true)}
+                className="px-4 py-2 rounded-lg text-sm transition-colors bg-green-600 hover:bg-green-700 text-white"
+              >
+                B2B'den Toplu İçe Aktar
+              </button>
+              <button
+                onClick={handleDeleteAllProducts}
+                className="px-4 py-2 rounded-lg text-sm transition-colors bg-red-600 hover:bg-red-700 text-white"
+              >
+                Tüm Ürünleri Sil
+              </button>
+            </>
           )}
           <button
             onClick={() => {
@@ -430,12 +482,27 @@ export const ProductsPage: React.FC = () => {
               >
                 {bulkImportLoading ? "İçe Aktarılıyor..." : "İçe Aktar"}
               </button>
+              {bulkImportLoading && bulkImportAbortController && (
+                <button
+                  type="button"
+                  onClick={handleCancelBulkImport}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded text-sm transition-colors text-white"
+                >
+                  Durdur
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setShowBulkImportModal(false)}
-                className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+                onClick={() => {
+                  if (bulkImportLoading && bulkImportAbortController) {
+                    handleCancelBulkImport();
+                  }
+                  setShowBulkImportModal(false);
+                }}
+                disabled={bulkImportLoading}
+                className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F] disabled:opacity-50"
               >
-                İptal
+                Kapat
               </button>
             </div>
           </form>

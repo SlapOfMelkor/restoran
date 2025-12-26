@@ -165,3 +165,15 @@ func DeleteProductHandler() fiber.Handler {
 		return c.SendStatus(fiber.StatusNoContent)
 	}
 }
+
+// DELETE /api/admin/products (tüm ürünleri sil)
+func DeleteAllProductsHandler() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		// Tüm ürünleri sil
+		if err := database.DB.Exec("DELETE FROM products").Error; err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Ürünler silinemedi")
+		}
+
+		return c.SendStatus(fiber.StatusNoContent)
+	}
+}
