@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
 import { Modal } from "../components/Modal";
+import { ProductImage } from "../components/ProductImage";
 import axios from "axios";
 
 interface Product {
@@ -34,6 +35,7 @@ export const ProductsPage: React.FC = () => {
   });
   const [bulkImportLoading, setBulkImportLoading] = useState(false);
   const [bulkImportAbortController, setBulkImportAbortController] = useState<AbortController | null>(null);
+  const [searchFilter, setSearchFilter] = useState("");
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -349,28 +351,54 @@ export const ProductsPage: React.FC = () => {
 
       {/* Ürünler Listesi */}
       <div className="bg-[#F4F4F4] rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-        <h2 className="text-sm font-semibold mb-3 text-[#8F1A9F]">Ürünler</h2>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+          <h2 className="text-sm font-semibold text-[#8F1A9F]">Ürünler</h2>
+          {/* Arama Filtresi */}
+          <input
+            type="text"
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+            className="px-3 py-2 rounded-lg text-sm border border-[#E5E5E5] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F] bg-white text-[#000000] w-full md:w-auto"
+            placeholder="Ürün adına göre ara..."
+          />
+        </div>
         {loading ? (
           <p className="text-xs text-[#222222]">Yükleniyor...</p>
         ) : products.length === 0 ? (
           <p className="text-xs text-[#222222]">Henüz ürün yok</p>
         ) : (
           <div className="space-y-2">
-            {products.map((product) => (
+            {products
+              .filter((product) => 
+                searchFilter === "" || 
+                product.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
+                (product.stock_code && product.stock_code.toLowerCase().includes(searchFilter.toLowerCase())) ||
+                (product.category && product.category.toLowerCase().includes(searchFilter.toLowerCase()))
+              )
+              .map((product) => (
               <div
                 key={product.id}
                 className="flex items-center justify-between p-3 bg-white rounded-xl border border-[#E5E5E5]"
               >
-                <div>
-                  <div className="text-sm font-medium">{product.name}</div>
-                  <div className="text-xs text-[#222222]">
-                    Birim: {product.unit}
-                    {product.stock_code && (
-                      <> • Stok Kodu: {product.stock_code}</>
-                    )}
-                    {product.category && (
-                      <> • Kategori: {product.category}</>
-                    )}
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  {/* Ürün Fotoğrafı */}
+                  <ProductImage
+                    stockCode={product.stock_code}
+                    productName={product.name}
+                    size="sm"
+                    className="flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{product.name}</div>
+                    <div className="text-xs text-[#222222]">
+                      Birim: {product.unit}
+                      {product.stock_code && (
+                        <> • Stok Kodu: {product.stock_code}</>
+                      )}
+                      {product.category && (
+                        <> • Kategori: {product.category}</>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-2">
