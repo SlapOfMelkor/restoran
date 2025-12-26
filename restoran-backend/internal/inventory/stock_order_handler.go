@@ -3,6 +3,7 @@ package inventory
 import (
 	"fmt"
 	"log"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -35,6 +36,61 @@ func normalizeTurkish(s string) string {
 		}
 	}
 	return strings.ToLower(result.String())
+}
+
+// normalizeProductName: Ürün adını normalleştirir - miktar bilgilerini (1KG, 500GR vb.) kaldırır
+// Örn: "BEYAZ ANTEP FISTIKLI KIRMA ÇİKOLATA 1KG" -> "beyaz antep fistikli kirma cikolata"
+// Örn: "beyaz antep fıstıklı kırma çikolata" -> "beyaz antep fistikli kirma cikolata"
+func normalizeProductName(s string) string {
+	// Önce Türkçe karakterleri normalize et
+	normalized := normalizeTurkish(s)
+
+	// Sonundaki miktar bilgilerini kaldır (regex ile)
+	// Pattern: boşluk + sayı + birim (kg/gr/lt/ml/g/l ile biten)
+	// Örnekler: " 1KG", " 500GR", " 2.5LT", " 250ML", " 1 G", " 500 L"
+	quantityPattern := `\s+[\d.,]+?\s*(?:kg|gr|lt|ml|g|l|KG|GR|LT|ML|G|L)\s*$`
+	re := regexp.MustCompile(quantityPattern)
+	normalized = re.ReplaceAllString(normalized, "")
+
+	// Kelime kelime temizlik: Sadece sayı içeren kelimeleri ve birimleri kaldır
+	words := strings.Fields(normalized)
+	var cleanedWords []string
+	for _, word := range words {
+		// Sayı içeren kelimeleri atla (örn: "1", "500", "2.5", "1KG", "500GR")
+		if isNumericOrUnit(word) {
+			continue
+		}
+		cleanedWords = append(cleanedWords, word)
+	}
+
+	result := strings.Join(cleanedWords, " ")
+	return strings.TrimSpace(result)
+}
+
+// isNumericOrUnit: Bir kelimenin sadece sayı veya birim (kg/gr/lt/ml/g/l) içerip içermediğini kontrol eder
+func isNumericOrUnit(word string) bool {
+	wordLower := strings.ToLower(strings.TrimSpace(word))
+	
+	// Tamamen sayı mı? (örn: "1", "500", "2.5", "1.25")
+	if matched, _ := regexp.MatchString(`^[\d.,]+$`, wordLower); matched {
+		return true
+	}
+
+	// Sayı + birim mi? (örn: "1kg", "500gr", "2.5lt", "1KG", "500GR")
+	unitPattern := `^[\d.,]+\s*(?:kg|gr|lt|ml|g|l)$`
+	if matched, _ := regexp.MatchString(unitPattern, wordLower); matched {
+		return true
+	}
+
+	// Sadece birim mi? (örn: "kg", "gr", "lt", "ml", "g", "l")
+	units := []string{"kg", "gr", "lt", "ml", "g", "l"}
+	for _, unit := range units {
+		if wordLower == unit {
+			return true
+		}
+	}
+
+	return false
 }
 
 // POST /api/stock-entries/upload-order
@@ -130,7 +186,7 @@ func UploadProductOrderHandler() fiber.Handler {
 				continue
 			}
 
-			// Ürünü bul (isim veya stok kodu ile - büyük/küçük harf ve Türkçe karakter duyarsız)
+			// Ürünü bul (isim veya stok kodu ile - büyük/küçük harf, Türkçe karakter ve miktar bilgileri duyarsız)
 			// Tüm ürünleri çekip normalize edilmiş haliyle karşılaştır
 			var products []models.Product
 			if err := database.DB.Find(&products).Error; err != nil {
@@ -138,18 +194,29 @@ func UploadProductOrderHandler() fiber.Handler {
 				continue
 			}
 
-			normalizedProductName := normalizeTurkish(productName)
+			// Ürün adını normalize et (Türkçe karakterler + miktar bilgileri kaldırıldı)
+			normalizedProductName := normalizeProductName(productName)
 			var product models.Product
 			found := false
 
 			for _, p := range products {
-				normalizedDBName := normalizeTurkish(p.Name)
+				// Veritabanındaki ürün adını normalize et
+				normalizedDBName := normalizeProductName(p.Name)
+				
+				// Stok kodunu da kontrol et (stok kodunda genelde miktar bilgisi olmaz ama yine de normalize edelim)
 				normalizedDBStockCode := ""
 				if p.StockCode != "" {
 					normalizedDBStockCode = normalizeTurkish(p.StockCode)
 				}
 
-				if normalizedDBName == normalizedProductName || normalizedDBStockCode == normalizedProductName {
+				// Eşleşme kontrolü: normalize edilmiş ürün adları veya stok kodu
+				if normalizedDBName == normalizedProductName {
+					product = p
+					found = true
+					break
+				}
+				// Stok kodu ile de eşleştirmeyi dene (stok kodunda genelde miktar bilgisi olmaz)
+				if normalizedDBStockCode != "" && normalizedDBStockCode == normalizeTurkish(productName) {
 					product = p
 					found = true
 					break
