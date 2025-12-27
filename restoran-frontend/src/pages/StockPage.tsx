@@ -106,7 +106,13 @@ export const StockPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentStockSearchQuery, setCurrentStockSearchQuery] = useState("");
   const [monthlyReportSearchQuery, setMonthlyReportSearchQuery] = useState("");
-  const [uploadingOrder, setUploadingOrder] = useState(false);
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [orderProductIds, setOrderProductIds] = useState<number[]>([]);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [draggedOverIndex, setDraggedOverIndex] = useState<number | null>(null);
+  const [showProductSelector, setShowProductSelector] = useState(false);
+  const [selectingIndex, setSelectingIndex] = useState<number | null>(null);
+  const [productSelectorQuery, setProductSelectorQuery] = useState("");
 
   // localStorage'dan draft'ı yükle
   useEffect(() => {
@@ -460,6 +466,27 @@ export const StockPage: React.FC = () => {
           >
             Geçmiş Girişleri Görüntüle
           </button>
+          <button
+            onClick={async () => {
+              // Mevcut sıralamayı yükle
+              try {
+                const params: any = {};
+                if (user?.role === "super_admin" && selectedBranchId) {
+                  params.branch_id = selectedBranchId;
+                }
+                const res = await apiClient.get("/stock-entries/order", { params });
+                setOrderProductIds(res.data.product_ids || []);
+                setShowOrderModal(true);
+              } catch (err) {
+                console.error("Sıralama yüklenemedi:", err);
+                setOrderProductIds([]);
+                setShowOrderModal(true);
+              }
+            }}
+            className="px-6 py-3 md:px-8 md:py-4 rounded-xl text-sm md:text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl w-full md:min-w-[200px] md:max-w-[250px] whitespace-normal text-center break-words"
+          >
+            Stok Sırasını Değiştir
+          </button>
         </div>
       </div>
 
@@ -567,55 +594,6 @@ export const StockPage: React.FC = () => {
             />
           </div>
 
-          {/* XLSX Sıralama Yükleme */}
-          <div className="border border-[#E5E5E5] rounded-lg p-3 bg-gray-50">
-            <label className="block text-xs font-medium text-[#555555] mb-2">
-              Ürün Sıralaması Yükle (XLSX)
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="file"
-                accept=".xlsx"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-
-                  setUploadingOrder(true);
-                  try {
-                    const formData = new FormData();
-                    formData.append("file", file);
-                    const params: any = {};
-                    if (user?.role === "super_admin" && selectedBranchId) {
-                      params.branch_id = selectedBranchId;
-                    }
-                    const res = await apiClient.post("/stock-entries/upload-order", formData, {
-                      headers: { "Content-Type": "multipart/form-data" },
-                      params,
-                    });
-                    alert(res.data.message || "Sıralama başarıyla yüklendi");
-                    // Mevcut stoku yeniden yükle (sıralama güncellenmiş olacak)
-                    await fetchCurrentStock();
-                    // Stock items'ı da güncelle
-                    await fetchProducts();
-                  } catch (err: any) {
-                    alert(err.response?.data?.error || "Sıralama yüklenemedi");
-                  } finally {
-                    setUploadingOrder(false);
-                    // Input'u temizle
-                    e.target.value = "";
-                  }
-                }}
-                disabled={uploadingOrder}
-                className="flex-1 text-xs text-[#555555] file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-[#8F1A9F] file:text-white hover:file:bg-[#7a168c] disabled:opacity-50"
-              />
-              {uploadingOrder && (
-                <span className="text-xs text-[#555555] self-center">Yükleniyor...</span>
-              )}
-            </div>
-            <p className="text-xs text-[#777777] mt-1">
-              XLSX dosyasının ilk kolonunda ürün adları olmalıdır.
-            </p>
-          </div>
 
           {/* Filtreleme */}
           <div>
@@ -1064,6 +1042,263 @@ export const StockPage: React.FC = () => {
               )}
             </div>
           )}
+        </div>
+      </Modal>
+
+      {/* Sıralama Düzenleme Modal */}
+      <Modal
+        isOpen={showOrderModal}
+        onClose={() => {
+          setShowOrderModal(false);
+          setDraggedIndex(null);
+          setDraggedOverIndex(null);
+        }}
+        title="Stok Sırasını Düzenle"
+        maxWidth="xl"
+      >
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div></div>
+            <button
+              onClick={async () => {
+                if (confirm("Sıralamayı temizlemek istediğinize emin misiniz?")) {
+                  try {
+                    const params: any = {};
+                    if (user?.role === "super_admin" && selectedBranchId) {
+                      params.branch_id = selectedBranchId;
+                    }
+                    await apiClient.delete("/stock-entries/order", { params });
+                    setOrderProductIds([]);
+                    alert("Sıralama temizlendi");
+                  } catch (err: any) {
+                    alert(err.response?.data?.error || "Sıralama temizlenemedi");
+                  }
+                }
+              }}
+              className="px-4 py-2 text-sm bg-red-500 hover:bg-red-600 text-white rounded-lg"
+            >
+              Sıralamayı Temizle
+            </button>
+          </div>
+
+          {/* Sıralama Listesi */}
+          <div className="space-y-2 max-h-[500px] overflow-y-auto">
+            {orderProductIds.length === 0 && (
+              <p className="text-sm text-gray-500 text-center py-4">
+                Henüz ürün eklenmemiş. Aşağıdaki boş kutucuğa tıklayarak ürün ekleyin.
+              </p>
+            )}
+            {orderProductIds.map((productId, index) => {
+              const product = products.find((p) => p.id === productId);
+              if (!product) return null;
+
+              return (
+                <div
+                  key={`${productId}-${index}`}
+                  draggable
+                  onDragStart={() => setDraggedIndex(index)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (draggedIndex !== null && draggedIndex !== index) {
+                      setDraggedOverIndex(index);
+                    }
+                  }}
+                  onDragLeave={() => setDraggedOverIndex(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedIndex !== null && draggedIndex !== index) {
+                      const newOrder = [...orderProductIds];
+                      const [removed] = newOrder.splice(draggedIndex, 1);
+                      newOrder.splice(index, 0, removed);
+                      setOrderProductIds(newOrder);
+                    }
+                    setDraggedIndex(null);
+                    setDraggedOverIndex(null);
+                  }}
+                  onClick={() => {
+                    setSelectingIndex(index);
+                    setProductSelectorQuery("");
+                    setShowProductSelector(true);
+                  }}
+                  className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                    draggedOverIndex === index
+                      ? "border-[#8F1A9F] bg-purple-50"
+                      : draggedIndex === index
+                      ? "opacity-50 border-gray-300"
+                      : "border-gray-200 hover:border-[#8F1A9F] hover:bg-gray-50"
+                  }`}
+                >
+                  <div className="cursor-move text-gray-400 hover:text-gray-600 select-none">
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path d="M7 2v2h2V2H7zm4 0v2h2V2h-2zM7 6v2h2V6H7zm4 0v2h2V6h-2zM7 10v2h2v-2H7zm4 0v2h2v-2h-2zM7 14v2h2v-2H7zm4 0v2h2v-2h-2z" />
+                    </svg>
+                  </div>
+                  <ProductImage
+                    stockCode={product.stock_code}
+                    productName={product.name}
+                    size="sm"
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium text-sm">{product.name}</div>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const newOrder = orderProductIds.filter((id) => id !== productId);
+                      setOrderProductIds(newOrder);
+                    }}
+                    className="text-red-500 hover:text-red-700 px-2"
+                  >
+                    ✕
+                  </button>
+                </div>
+              );
+            })}
+
+            {/* Boş Satır Ekleme */}
+            <div
+              onClick={() => {
+                setSelectingIndex(orderProductIds.length);
+                setProductSelectorQuery("");
+                setShowProductSelector(true);
+              }}
+              className="flex items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-[#8F1A9F] hover:bg-gray-50 text-gray-500 hover:text-[#8F1A9F]"
+            >
+              + Ürün Ekle
+            </div>
+          </div>
+
+          {/* Kaydet Butonu */}
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <button
+              onClick={() => {
+                setShowOrderModal(false);
+                setDraggedIndex(null);
+                setDraggedOverIndex(null);
+              }}
+              className="px-4 py-2 text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg"
+            >
+              İptal
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  const params: any = {};
+                  if (user?.role === "super_admin" && selectedBranchId) {
+                    params.branch_id = selectedBranchId;
+                  }
+                  await apiClient.post(
+                    "/stock-entries/order",
+                    { product_ids: orderProductIds },
+                    { params }
+                  );
+                  alert("Sıralama başarıyla kaydedildi");
+                  setShowOrderModal(false);
+                  await fetchCurrentStock();
+                } catch (err: any) {
+                  alert(err.response?.data?.error || "Sıralama kaydedilemedi");
+                }
+              }}
+              className="px-4 py-2 text-sm bg-[#8F1A9F] hover:bg-[#7a168c] text-white rounded-lg"
+            >
+              Sırayı Kaydet
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Ürün Seçici Modal */}
+      <Modal
+        isOpen={showProductSelector}
+        onClose={() => {
+          setShowProductSelector(false);
+          setSelectingIndex(null);
+          setProductSelectorQuery("");
+        }}
+        title="Ürün Seç"
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          {/* Arama */}
+          <input
+            type="text"
+            value={productSelectorQuery}
+            onChange={(e) => setProductSelectorQuery(e.target.value)}
+            placeholder="Ürün ara..."
+            className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+            autoFocus
+          />
+
+          {/* Ürün Listesi */}
+          <div className="max-h-[400px] overflow-y-auto space-y-2">
+            {products
+              .filter((p) =>
+                productSelectorQuery === "" ||
+                p.name.toLowerCase().includes(productSelectorQuery.toLowerCase())
+              )
+              .filter((p) => {
+                // Eğer bir sırayı değiştiriyorsak, o sıradaki ürünü de göster
+                if (selectingIndex !== null && selectingIndex < orderProductIds.length) {
+                  return p.id === orderProductIds[selectingIndex] || !orderProductIds.includes(p.id);
+                }
+                // Yeni ürün ekliyorsak, sadece eklenmemiş ürünleri göster
+                return !orderProductIds.includes(p.id);
+              })
+              .map((product) => (
+                <div
+                  key={product.id}
+                  onClick={() => {
+                    if (selectingIndex !== null) {
+                      const newOrder = [...orderProductIds];
+                      if (selectingIndex < newOrder.length) {
+                        // Mevcut bir sırayı değiştir
+                        newOrder[selectingIndex] = product.id;
+                      } else {
+                        // Yeni ürün ekle
+                        newOrder.push(product.id);
+                      }
+                      setOrderProductIds(newOrder);
+                    }
+                    setShowProductSelector(false);
+                    setSelectingIndex(null);
+                    setProductSelectorQuery("");
+                  }}
+                  className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-[#8F1A9F] hover:bg-gray-50"
+                >
+                  <ProductImage
+                    stockCode={product.stock_code}
+                    productName={product.name}
+                    size="sm"
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium text-sm">{product.name}</div>
+                    {product.stock_code && (
+                      <div className="text-xs text-gray-500">{product.stock_code}</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            {products
+              .filter((p) =>
+                productSelectorQuery === "" ||
+                p.name.toLowerCase().includes(productSelectorQuery.toLowerCase())
+              )
+              .filter((p) => {
+                if (selectingIndex !== null && selectingIndex < orderProductIds.length) {
+                  return p.id === orderProductIds[selectingIndex] || !orderProductIds.includes(p.id);
+                }
+                return !orderProductIds.includes(p.id);
+              }).length === 0 && (
+              <p className="text-sm text-gray-500 text-center py-4">
+                Ürün bulunamadı
+              </p>
+            )}
+          </div>
         </div>
       </Modal>
     </div>

@@ -12,7 +12,6 @@ import (
 	"restoran-backend/internal/models"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/xuri/excelize/v2"
 )
 
 // normalizeTurkish: Türkçe karakterleri ASCII karşılıklarına çevirir
@@ -93,187 +92,116 @@ func isNumericOrUnit(word string) bool {
 	return false
 }
 
-// POST /api/stock-entries/upload-order
-// XLSX dosyasını yükler ve ürün sıralamasını kaydeder
-func UploadProductOrderHandler() fiber.Handler {
+// GetProductOrderHandler: GET /api/stock-entries/order
+// Mevcut ürün sıralamasını getirir
+func GetProductOrderHandler() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Kullanıcı ve şube bilgisi
 		branchID, err := resolveBranchIDFromContext(c)
 		if err != nil {
 			return err
 		}
 
-		// Dosya yükleme
-		fileHeader, err := c.FormFile("file")
+		var orders []models.BranchProductOrder
+		if err := database.DB.Where("branch_id = ?", branchID).
+			Order("order_index asc").
+			Preload("Product").
+			Find(&orders).Error; err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Sıralama bilgisi alınamadı")
+		}
+
+		// Product ID'lerini sıraya göre döndür
+		productIDs := make([]uint, 0, len(orders))
+		for _, order := range orders {
+			// Sadece mevcut ürünleri dahil et (silinmiş ürünleri filtrele)
+			var product models.Product
+			if database.DB.First(&product, "id = ?", order.ProductID).Error == nil {
+				productIDs = append(productIDs, order.ProductID)
+			} else {
+				// Silinmiş ürünün sıralama kaydını da sil
+				database.DB.Delete(&models.BranchProductOrder{}, "id = ?", order.ID)
+			}
+		}
+
+		return c.JSON(fiber.Map{
+			"product_ids": productIDs,
+		})
+	}
+}
+
+// SaveProductOrderHandler: POST /api/stock-entries/order
+// Ürün sıralamasını kaydeder
+func SaveProductOrderHandler() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		branchID, err := resolveBranchIDFromContext(c)
 		if err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, "Dosya yüklenemedi: "+err.Error())
+			return err
 		}
 
-		if !strings.HasSuffix(strings.ToLower(fileHeader.Filename), ".xlsx") {
-			return fiber.NewError(fiber.StatusBadRequest, "Sadece .xlsx dosyaları yüklenebilir")
+		var body struct {
+			ProductIDs []uint `json:"product_ids"`
 		}
 
-		// Dosyayı aç
-		file, err := fileHeader.Open()
-		if err != nil {
-			return fiber.NewError(fiber.StatusInternalServerError, "Dosya açılamadı: "+err.Error())
-		}
-		defer file.Close()
-
-		// Excelize ile dosyayı oku
-		excelFile, err := excelize.OpenReader(file)
-		if err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, "Excel dosyası okunamadı: "+err.Error())
-		}
-		defer excelFile.Close()
-
-		// İlk sheet'i al
-		sheetList := excelFile.GetSheetList()
-		if len(sheetList) == 0 {
-			return fiber.NewError(fiber.StatusBadRequest, "Excel dosyasında sheet bulunamadı")
-		}
-		sheetName := sheetList[0]
-
-		// Sheet'teki tüm satırları oku
-		rows, err := excelFile.GetRows(sheetName)
-		if err != nil {
-			return fiber.NewError(fiber.StatusBadRequest, "Sheet okunamadı: "+err.Error())
+		if err := c.BodyParser(&body); err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Geçersiz istek: "+err.Error())
 		}
 
-		if len(rows) == 0 {
-			return fiber.NewError(fiber.StatusBadRequest, "Excel dosyası boş")
-		}
-
-		// İlk satırın başlık satırı olup olmadığını kontrol et
-		// "ÜRÜN ADI", "PRODUCT", "PRODUCT NAME" gibi kelimeler varsa başlık satırıdır
-		skipFirstRow := false
-		if len(rows) > 0 && len(rows[0]) > 0 {
-			firstCell := strings.ToUpper(strings.TrimSpace(rows[0][0]))
-			if strings.Contains(firstCell, "ÜRÜN") || strings.Contains(firstCell, "PRODUCT") || 
-			   strings.Contains(firstCell, "PRODUCT NAME") || firstCell == "ÜRÜN ADI" {
-				skipFirstRow = true
+		// Ürün ID'lerinin geçerli olduğunu kontrol et
+		if len(body.ProductIDs) > 0 {
+			var count int64
+			if err := database.DB.Model(&models.Product{}).
+				Where("id IN ?", body.ProductIDs).
+				Count(&count).Error; err != nil {
+				return fiber.NewError(fiber.StatusInternalServerError, "Ürünler kontrol edilemedi")
+			}
+			if int(count) != len(body.ProductIDs) {
+				return fiber.NewError(fiber.StatusBadRequest, "Geçersiz ürün ID'leri bulundu")
 			}
 		}
 
 		// Eski sıralamayı sil (bu şube için)
 		if err := database.DB.Where("branch_id = ?", branchID).Delete(&models.BranchProductOrder{}).Error; err != nil {
 			log.Printf("Eski sıralama silinirken hata: %v", err)
-			// Devam et, kritik değil
 		}
 
-		// Ürünleri eşleştir ve sıralama kaydet
-		orderIndex := 0
-		matchedCount := 0
-		unmatchedProducts := make([]string, 0)
-
-		startIndex := 0
-		if skipFirstRow {
-			startIndex = 1
-			log.Printf("İlk satır başlık satırı olarak algılandı, atlanıyor")
-		}
-
-		for i := startIndex; i < len(rows); i++ {
-			row := rows[i]
-			
-			// Boş satırları atla
-			if len(row) == 0 {
-				continue
-			}
-
-			// İlk kolonu ürün adı olarak al (trim yap)
-			productName := strings.TrimSpace(row[0])
-			if productName == "" {
-				continue
-			}
-
-			// Ürünü bul (isim veya stok kodu ile)
-			// Önce tam eşleşme (miktar bilgisi dahil) kontrol et, yoksa miktar bilgilerini göz ardı ederek eşleştir
-			var products []models.Product
-			if err := database.DB.Find(&products).Error; err != nil {
-				unmatchedProducts = append(unmatchedProducts, productName)
-				continue
-			}
-
-			var product models.Product
-			found := false
-
-			// 1. ADIM: Tam eşleşme kontrolü (miktar bilgisi dahil, sadece Türkçe karakter normalize)
-			normalizedProductNameFull := normalizeTurkish(productName)
-			for _, p := range products {
-				normalizedDBNameFull := normalizeTurkish(p.Name)
-				
-				// Tam eşleşme varsa (miktar bilgisi dahil)
-				if normalizedDBNameFull == normalizedProductNameFull {
-					product = p
-					found = true
-					break
-				}
-				
-				// Stok kodu ile eşleşme kontrolü
-				if p.StockCode != "" {
-					normalizedDBStockCode := normalizeTurkish(p.StockCode)
-					if normalizedDBStockCode == normalizedProductNameFull {
-						product = p
-						found = true
-						break
-					}
-				}
-			}
-
-			// 2. ADIM: Tam eşleşme yoksa, miktar bilgilerini göz ardı ederek eşleştir
-			if !found {
-				normalizedProductNameNoQuantity := normalizeProductName(productName)
-				
-				for _, p := range products {
-					// Veritabanındaki ürün adını normalize et (miktar bilgilerini kaldırarak)
-					normalizedDBNameNoQuantity := normalizeProductName(p.Name)
-					
-					// Miktar bilgileri göz ardı edilerek eşleşme kontrolü
-					if normalizedDBNameNoQuantity == normalizedProductNameNoQuantity {
-						product = p
-						found = true
-						break
-					}
-					
-					// Stok kodu ile de eşleştirmeyi dene (stok kodunda genelde miktar bilgisi olmaz)
-					if p.StockCode != "" {
-						normalizedDBStockCode := normalizeTurkish(p.StockCode)
-						normalizedProductStockCode := normalizeTurkish(productName)
-						if normalizedDBStockCode == normalizedProductStockCode {
-							product = p
-							found = true
-							break
-						}
-					}
-				}
-			}
-
-			if !found {
-				unmatchedProducts = append(unmatchedProducts, productName)
-				continue
-			}
-
-			// Sıralama kaydı oluştur
-			order := models.BranchProductOrder{
+		// Yeni sıralamayı kaydet
+		orders := make([]models.BranchProductOrder, 0, len(body.ProductIDs))
+		for index, productID := range body.ProductIDs {
+			orders = append(orders, models.BranchProductOrder{
 				BranchID:   branchID,
-				ProductID:  product.ID,
-				OrderIndex: orderIndex,
-			}
+				ProductID:  productID,
+				OrderIndex: index,
+			})
+		}
 
-			if err := database.DB.Create(&order).Error; err != nil {
-				log.Printf("Sıralama kaydı oluşturulurken hata (product_id=%d): %v", product.ID, err)
-				continue
+		if len(orders) > 0 {
+			if err := database.DB.Create(&orders).Error; err != nil {
+				return fiber.NewError(fiber.StatusInternalServerError, "Sıralama kaydedilemedi: "+err.Error())
 			}
-
-			orderIndex++
-			matchedCount++
 		}
 
 		return c.JSON(fiber.Map{
-			"success":           true,
-			"matched_count":     matchedCount,
-			"unmatched_products": unmatchedProducts,
-			"message":           fmt.Sprintf("%d ürün sıralaması kaydedildi. %d ürün eşleşmedi.", matchedCount, len(unmatchedProducts)),
+			"success": true,
+			"message": fmt.Sprintf("%d ürün sıralaması kaydedildi", len(orders)),
+		})
+	}
+}
+
+// ClearProductOrderHandler: DELETE /api/stock-entries/order
+// Ürün sıralamasını temizler
+func ClearProductOrderHandler() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		branchID, err := resolveBranchIDFromContext(c)
+		if err != nil {
+			return err
+		}
+
+		if err := database.DB.Where("branch_id = ?", branchID).Delete(&models.BranchProductOrder{}).Error; err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "Sıralama temizlenemedi: "+err.Error())
+		}
+
+		return c.JSON(fiber.Map{
+			"success": true,
+			"message": "Sıralama temizlendi",
 		})
 	}
 }

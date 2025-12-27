@@ -130,7 +130,10 @@ func main() {
 	protected.Post("/stock-entries", inventory.CreateStockEntryHandler())
 	protected.Get("/stock-entries", inventory.ListStockEntriesHandler())
 	protected.Get("/stock-entries/current", inventory.GetCurrentStockHandler())
-	protected.Post("/stock-entries/upload-order", inventory.UploadProductOrderHandler()) // XLSX sıralama yükleme
+	// Ürün sıralama yönetimi (manuel)
+	protected.Get("/stock-entries/order", inventory.GetProductOrderHandler())
+	protected.Post("/stock-entries/order", inventory.SaveProductOrderHandler())
+	protected.Delete("/stock-entries/order", inventory.ClearProductOrderHandler())
 	protected.Get("/stock-entries/usage-between-counts", inventory.GetStockUsageBetweenCountsHandler())
 	protected.Get("/stock-usage/monthly", inventory.GetMonthlyStockUsageHandler())
 
