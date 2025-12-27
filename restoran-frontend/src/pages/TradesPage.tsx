@@ -634,7 +634,7 @@ export const TradesPage: React.FC = () => {
 
       {/* Ticaret İşlemleri Tab */}
       {activeTab === "trades" && (
-        <React.Fragment>
+        <div>
       {/* Başlık ve Filtre */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex flex-col sm:flex-row gap-3">
@@ -1137,12 +1137,12 @@ export const TradesPage: React.FC = () => {
             </div>
           )}
         </div>
-        </React.Fragment>
+        </div>
       )}
 
       {/* Mal Mülk Tab */}
       {activeTab === "properties" && (
-        <React.Fragment>
+        <div>
           {/* Başlık ve Buton */}
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <h2 className="text-xl font-bold text-[#222222]">Mal Mülk</h2>
@@ -1344,7 +1344,7 @@ export const TradesPage: React.FC = () => {
               )}
             </div>
           )}
-        </React.Fragment>
+        </div>
       )}
     </div>
   );
