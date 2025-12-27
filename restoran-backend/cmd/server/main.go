@@ -152,6 +152,12 @@ func main() {
 	protected.Get("/expense-payments", expense.ListExpensePaymentsHandler())
 	protected.Get("/expense-payments/balance-by-category", expense.GetCategoryExpenseBalanceHandler())
 
+	// Manav tedarikçi yönetimi
+	protected.Post("/produce-suppliers", produce.CreateProduceSupplierHandler())
+	protected.Get("/produce-suppliers", produce.ListProduceSuppliersHandler())
+	protected.Put("/produce-suppliers/:id", produce.UpdateProduceSupplierHandler())
+	protected.Delete("/produce-suppliers/:id", produce.DeleteProduceSupplierHandler())
+
 	// Manav yönetimi
 	protected.Post("/produce-purchases", produce.CreateProducePurchaseHandler())
 	protected.Get("/produce-purchases", produce.ListProducePurchasesHandler())

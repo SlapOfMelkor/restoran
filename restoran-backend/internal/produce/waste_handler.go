@@ -24,6 +24,7 @@ type ProduceWasteResponse struct {
 }
 
 type CreateProduceWasteRequest struct {
+	SupplierID  uint    `json:"supplier_id"` // ProduceSupplier ID
 	ProductID   uint    `json:"product_id"`
 	PurchaseID  *uint   `json:"purchase_id"` // Opsiyonel
 	Quantity    float64 `json:"quantity"`
@@ -51,8 +52,8 @@ func CreateProduceWasteHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Geçersiz veri")
 		}
 
-		if body.ProductID == 0 || body.Quantity <= 0 {
-			return fiber.NewError(fiber.StatusBadRequest, "product_id ve quantity zorunlu ve quantity 0'dan büyük olmalı")
+		if body.SupplierID == 0 || body.ProductID == 0 || body.Quantity <= 0 {
+			return fiber.NewError(fiber.StatusBadRequest, "supplier_id, product_id ve quantity zorunlu ve quantity 0'dan büyük olmalı")
 		}
 
 		branchID, err := resolveBranchIDFromBodyOrRole(c, body.BranchID)
@@ -65,22 +66,32 @@ func CreateProduceWasteHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Tarih formatı 'YYYY-MM-DD' olmalı")
 		}
 
+		// Tedarikçi var mı ve bu şubeye ait mi?
+		var supplier models.ProduceSupplier
+		if err := database.DB.First(&supplier, "id = ? AND branch_id = ?", body.SupplierID, branchID).Error; err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Tedarikçi bulunamadı veya bu şubeye ait değil")
+		}
+
 		// Ürün var mı?
 		var product models.ProduceProduct
 		if err := database.DB.First(&product, "id = ?", body.ProductID).Error; err != nil {
 			return fiber.NewError(fiber.StatusBadRequest, "Manav ürünü bulunamadı")
 		}
 
-		// PurchaseID varsa kontrol et
+		// PurchaseID varsa kontrol et (supplier_id uyumlu olmalı)
 		if body.PurchaseID != nil && *body.PurchaseID > 0 {
 			var purchase models.ProducePurchase
 			if err := database.DB.First(&purchase, "id = ?", *body.PurchaseID).Error; err != nil {
 				return fiber.NewError(fiber.StatusBadRequest, "Alım kaydı bulunamadı")
 			}
+			if purchase.SupplierID != body.SupplierID {
+				return fiber.NewError(fiber.StatusBadRequest, "Alım kaydı seçilen tedarikçiye ait değil")
+			}
 		}
 
 		waste := models.ProduceWaste{
 			BranchID:    branchID,
+			SupplierID:  body.SupplierID,
 			ProductID:   body.ProductID,
 			PurchaseID:  body.PurchaseID, // zaten *uint
 			Quantity:    body.Quantity,
@@ -130,12 +141,22 @@ func ListProduceWasteHandler() fiber.Handler {
 			return err
 		}
 
-		var wastes []models.ProduceWaste
-		if err := database.DB.
+		supplierIDStr := c.Query("supplier_id")
+
+		dbq := database.DB.
 			Preload("Product").
-			Where("branch_id = ?", branchID).
-			Order("date DESC, created_at DESC").
-			Find(&wastes).Error; err != nil {
+			Where("branch_id = ?", branchID)
+
+		if supplierIDStr != "" {
+			var sid uint
+			if _, err := fmt.Sscan(supplierIDStr, &sid); err != nil || sid == 0 {
+				return fiber.NewError(fiber.StatusBadRequest, "supplier_id geçersiz")
+			}
+			dbq = dbq.Where("supplier_id = ?", sid)
+		}
+
+		var wastes []models.ProduceWaste
+		if err := dbq.Order("date DESC, created_at DESC").Find(&wastes).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Zayiat kayıtları listelenemedi")
 		}
 

@@ -115,6 +115,7 @@ func Init(cfg *config.Config) {
 		&models.MonthlyReport{},
 		&models.WasteEntry{},
 		&models.ProduceProduct{},  // Manav ürünleri (Product tablosundan bağımsız)
+		&models.ProduceSupplier{},  // Manav tedarikçileri
 		&models.ProducePurchase{},
 		&models.ProducePayment{},
 		&models.ProduceWaste{},        // Manav zayiat kayıtları

@@ -13,6 +13,8 @@ interface Product {
 interface ProducePurchase {
   id: number;
   branch_id: number;
+  supplier_id: number;
+  supplier_name?: string;
   product_id: number;
   product_name: string;
   product_unit: string;
@@ -34,6 +36,8 @@ interface ProducePurchaseWithLog extends ProducePurchase {
 interface ProducePayment {
   id: number;
   branch_id: number;
+  supplier_id: number;
+  supplier_name?: string;
   amount: number;
   date: string;
   description: string;
@@ -50,6 +54,8 @@ interface ProducePaymentWithLog extends ProducePayment {
 interface ProduceWaste {
   id: number;
   branch_id: number;
+  supplier_id: number;
+  supplier_name?: string;
   product_id: number;
   product_name: string;
   purchase_id?: number | null;
@@ -89,9 +95,26 @@ interface ProduceBalance {
   remaining_debt: number;
 }
 
+interface ProduceSupplier {
+  id: number;
+  branch_id: number;
+  name: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export const ProducePage: React.FC = () => {
   const { user, selectedBranchId } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
+  const [suppliers, setSuppliers] = useState<ProduceSupplier[]>([]);
+  const [selectedSupplier, setSelectedSupplier] = useState<ProduceSupplier | null>(null);
+  const [showSupplierSelector, setShowSupplierSelector] = useState(false);
+  const [showSupplierForm, setShowSupplierForm] = useState(false);
+  const [supplierFormData, setSupplierFormData] = useState({
+    name: "",
+    description: "",
+  });
   const [purchases, setPurchases] = useState<ProducePurchaseWithLog[]>([]);
   const [payments, setPayments] = useState<ProducePaymentWithLog[]>([]);
   const [wastes, setWastes] = useState<ProduceWasteWithLog[]>([]);
@@ -111,6 +134,7 @@ export const ProducePage: React.FC = () => {
     stock_code: "",
   });
   const [purchaseFormData, setPurchaseFormData] = useState({
+    supplier_id: "",
     product_id: "",
     quantity: "",
     unit_price: "",
@@ -118,11 +142,13 @@ export const ProducePage: React.FC = () => {
     description: "",
   });
   const [paymentFormData, setPaymentFormData] = useState({
+    supplier_id: "",
     amount: "",
     date: new Date().toISOString().split("T")[0],
     description: "",
   });
   const [wasteFormData, setWasteFormData] = useState({
+    supplier_id: "",
     product_id: "",
     purchase_id: "",
     quantity: "",
@@ -130,6 +156,46 @@ export const ProducePage: React.FC = () => {
     description: "",
   });
   const [submitting, setSubmitting] = useState(false);
+
+  const fetchSuppliers = async () => {
+    try {
+      const params: any = {};
+      if (user?.role === "super_admin" && selectedBranchId) {
+        params.branch_id = selectedBranchId;
+      }
+      const res = await apiClient.get("/produce-suppliers", { params });
+      setSuppliers(res.data || []);
+      
+      // Eğer hiç supplier yoksa, selector'ı göster ve oluşturmayı mecbur kıl
+      if ((res.data || []).length === 0) {
+        setShowSupplierSelector(true);
+      } else {
+        // LocalStorage'dan seçili supplier'ı yükle
+        const savedSupplierId = localStorage.getItem("selectedProduceSupplierId");
+        if (savedSupplierId) {
+          const supplier = (res.data || []).find((s: ProduceSupplier) => s.id.toString() === savedSupplierId);
+          if (supplier) {
+            setSelectedSupplier(supplier);
+            setShowSupplierSelector(false);
+          } else {
+            // Kayıtlı supplier bulunamadı, ilk supplier'ı seç
+            setSelectedSupplier(res.data[0]);
+            localStorage.setItem("selectedProduceSupplierId", res.data[0].id.toString());
+            setShowSupplierSelector(false);
+          }
+        } else {
+          // İlk supplier'ı otomatik seç
+          setSelectedSupplier(res.data[0]);
+          localStorage.setItem("selectedProduceSupplierId", res.data[0].id.toString());
+          setShowSupplierSelector(false);
+        }
+      }
+    } catch (err) {
+      console.error("Tedarikçiler yüklenemedi:", err);
+      setSuppliers([]);
+      setShowSupplierSelector(true);
+    }
+  };
 
   const fetchProducts = async () => {
     try {
@@ -144,9 +210,13 @@ export const ProducePage: React.FC = () => {
 
 
   const fetchPurchases = async () => {
+    if (!selectedSupplier) return;
+    
     setLoading(true);
     try {
-      const params: any = {};
+      const params: any = {
+        supplier_id: selectedSupplier.id,
+      };
       if (user?.role === "super_admin" && selectedBranchId) {
         params.branch_id = selectedBranchId;
       }
@@ -191,8 +261,12 @@ export const ProducePage: React.FC = () => {
   };
 
   const fetchPayments = async () => {
+    if (!selectedSupplier) return;
+    
     try {
-      const params: any = {};
+      const params: any = {
+        supplier_id: selectedSupplier.id,
+      };
       if (user?.role === "super_admin" && selectedBranchId) {
         params.branch_id = selectedBranchId;
       }
@@ -235,8 +309,12 @@ export const ProducePage: React.FC = () => {
   };
 
   const fetchBalance = async () => {
+    if (!selectedSupplier) return;
+    
     try {
-      const params: any = {};
+      const params: any = {
+        supplier_id: selectedSupplier.id,
+      };
       if (user?.role === "super_admin" && selectedBranchId) {
         params.branch_id = selectedBranchId;
       }
@@ -248,9 +326,13 @@ export const ProducePage: React.FC = () => {
   };
 
   const fetchWastes = async () => {
+    if (!selectedSupplier) return;
+    
     setLoading(true);
     try {
-      const params: any = {};
+      const params: any = {
+        supplier_id: selectedSupplier.id,
+      };
       if (user?.role === "super_admin" && selectedBranchId) {
         params.branch_id = selectedBranchId;
       }
@@ -294,13 +376,21 @@ export const ProducePage: React.FC = () => {
     }
   };
 
+  // Önce supplier'ları yükle
   useEffect(() => {
+    fetchSuppliers();
     fetchProducts();
-    fetchPurchases();
-    fetchPayments();
-    fetchWastes();
-    fetchBalance();
   }, [user, selectedBranchId]);
+
+  // Supplier seçildiğinde diğer verileri yükle
+  useEffect(() => {
+    if (selectedSupplier) {
+      fetchPurchases();
+      fetchPayments();
+      fetchWastes();
+      fetchBalance();
+    }
+  }, [selectedSupplier, user, selectedBranchId]);
 
   const handlePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -318,9 +408,15 @@ export const ProducePage: React.FC = () => {
       return;
     }
 
+    if (!selectedSupplier) {
+      alert("Lütfen önce bir tedarikçi seçin");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload: any = {
+        supplier_id: selectedSupplier.id,
         product_id: parseInt(purchaseFormData.product_id),
         quantity: quantityNum,
         unit_price: unitPriceNum,
@@ -360,9 +456,15 @@ export const ProducePage: React.FC = () => {
       return;
     }
 
+    if (!selectedSupplier) {
+      alert("Lütfen önce bir tedarikçi seçin");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload: any = {
+        supplier_id: selectedSupplier.id,
         amount: amountNum,
         date: paymentFormData.date,
         description: paymentFormData.description,
@@ -375,6 +477,7 @@ export const ProducePage: React.FC = () => {
       await apiClient.post("/produce-payments", payload);
       alert("Ödeme başarıyla eklendi");
       setPaymentFormData({
+        supplier_id: selectedSupplier?.id.toString() || "",
         amount: "",
         date: new Date().toISOString().split("T")[0],
         description: "",
@@ -398,9 +501,15 @@ export const ProducePage: React.FC = () => {
       return;
     }
 
+    if (!selectedSupplier) {
+      alert("Lütfen önce bir tedarikçi seçin");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload: any = {
+        supplier_id: selectedSupplier.id,
         product_id: parseInt(wasteFormData.product_id),
         quantity: quantityNum,
         date: wasteFormData.date,
@@ -418,6 +527,7 @@ export const ProducePage: React.FC = () => {
       await apiClient.post("/produce-waste", payload);
       alert("Zayiat kaydı başarıyla eklendi");
       setWasteFormData({
+        supplier_id: selectedSupplier?.id.toString() || "",
         product_id: "",
         purchase_id: "",
         quantity: "",
@@ -583,9 +693,164 @@ export const ProducePage: React.FC = () => {
     setShowProductModal(true);
   };
 
+  const handleSupplierSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supplierFormData.name.trim()) {
+      alert("Lütfen tedarikçi ismi girin");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload: any = {
+        name: supplierFormData.name.trim(),
+        description: supplierFormData.description.trim(),
+      };
+
+      if (user?.role === "super_admin" && selectedBranchId) {
+        payload.branch_id = selectedBranchId;
+      }
+
+      await apiClient.post("/produce-suppliers", payload);
+      alert("Tedarikçi başarıyla oluşturuldu");
+      setSupplierFormData({ name: "", description: "" });
+      setShowSupplierForm(false);
+      await fetchSuppliers();
+      setShowSupplierSelector(true); // Yeni oluşturulan supplier'ı seçmek için selector'ı göster
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Tedarikçi oluşturulamadı");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSelectSupplier = (supplier: ProduceSupplier) => {
+    setSelectedSupplier(supplier);
+    localStorage.setItem("selectedProduceSupplierId", supplier.id.toString());
+    setShowSupplierSelector(false);
+    // Sayfa yenileniyor gibi davranış için verileri yeniden yükle
+    window.location.reload();
+  };
 
   return (
     <div className="space-y-4">
+      {/* Supplier Seçim Modal */}
+      <Modal
+        isOpen={showSupplierSelector}
+        onClose={() => {
+          // Hiç supplier yoksa kapatmaya izin verme
+          if (suppliers.length === 0) {
+            return;
+          }
+          setShowSupplierSelector(false);
+        }}
+        title={suppliers.length === 0 ? "Manav Tedarikçisi Oluştur" : "Manav Tedarikçisi Seç"}
+        maxWidth="md"
+      >
+        <div className="space-y-4">
+          {/* Supplier Listesi */}
+          {suppliers.length > 0 && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-[#222222] mb-2">
+                Mevcut Tedarikçiler:
+              </label>
+              {suppliers.map((supplier) => (
+                <div
+                  key={supplier.id}
+                  onClick={() => handleSelectSupplier(supplier)}
+                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-[#8F1A9F] hover:bg-gray-50"
+                >
+                  <div>
+                    <div className="font-medium text-sm">{supplier.name}</div>
+                    {supplier.description && (
+                      <div className="text-xs text-gray-500">{supplier.description}</div>
+                    )}
+                  </div>
+                  <button className="px-4 py-2 rounded text-sm font-medium transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white">
+                    Seç
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Supplier Oluşturma Formu */}
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-medium text-[#222222]">
+                {suppliers.length === 0 ? "İlk Tedarikçiyi Oluşturun:" : "Yeni Tedarikçi Ekle:"}
+              </label>
+              <button
+                onClick={() => {
+                  setShowSupplierForm(!showSupplierForm);
+                  setSupplierFormData({ name: "", description: "" });
+                }}
+                className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded text-gray-700"
+              >
+                {showSupplierForm ? "İptal" : "+ Yeni Tedarikçi"}
+              </button>
+            </div>
+
+            {showSupplierForm && (
+              <form onSubmit={handleSupplierSubmit} className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-[#222222] mb-1">
+                    İsim *
+                  </label>
+                  <input
+                    type="text"
+                    value={supplierFormData.name}
+                    onChange={(e) =>
+                      setSupplierFormData({ ...supplierFormData, name: e.target.value })
+                    }
+                    className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                    placeholder="Tedarikçi ismi..."
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#222222] mb-1">
+                    Açıklama
+                  </label>
+                  <textarea
+                    value={supplierFormData.description}
+                    onChange={(e) =>
+                      setSupplierFormData({ ...supplierFormData, description: e.target.value })
+                    }
+                    className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                    rows={2}
+                    placeholder="Açıklama (opsiyonel)..."
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full px-4 py-2 rounded text-sm font-medium transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
+                >
+                  {submitting ? "Oluşturuluyor..." : "Tedarikçi Oluştur"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Ana Sayfa İçeriği - Sadece supplier seçildiyse göster */}
+      {selectedSupplier && (
+        <>
+      {/* Başlık ve Supplier Değiştirme Butonu */}
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold text-[#222222]">
+          Manav - {selectedSupplier.name}
+        </h1>
+        <button
+          onClick={() => setShowSupplierSelector(true)}
+          className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 hover:bg-blue-700 text-white"
+        >
+          Tedarikçi Değiştir
+        </button>
+      </div>
+
       <div className="flex items-center justify-center py-8">
         <div className="flex flex-wrap gap-4 justify-center">
           <button
@@ -620,19 +885,62 @@ export const ProducePage: React.FC = () => {
             Zayiat Kayıtları
           </button>
           <button
-            onClick={() => setShowPurchaseForm(true)}
+            onClick={() => {
+              if (!selectedSupplier) {
+                alert("Lütfen önce bir tedarikçi seçin");
+                setShowSupplierSelector(true);
+                return;
+              }
+              setPurchaseFormData({
+                supplier_id: selectedSupplier.id.toString(),
+                product_id: "",
+                quantity: "",
+                unit_price: "",
+                date: new Date().toISOString().split("T")[0],
+                description: "",
+              });
+              setShowPurchaseForm(true);
+            }}
             className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
           >
             Alım Ekle
           </button>
           <button
-            onClick={() => setShowPaymentForm(true)}
+            onClick={() => {
+              if (!selectedSupplier) {
+                alert("Lütfen önce bir tedarikçi seçin");
+                setShowSupplierSelector(true);
+                return;
+              }
+              setPaymentFormData({
+                supplier_id: selectedSupplier.id.toString(),
+                amount: "",
+                date: new Date().toISOString().split("T")[0],
+                description: "",
+              });
+              setShowPaymentForm(true);
+            }}
             className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
           >
             Ödeme Ekle
           </button>
           <button
-            onClick={() => setShowWasteForm(true)}
+            onClick={() => {
+              if (!selectedSupplier) {
+                alert("Lütfen önce bir tedarikçi seçin");
+                setShowSupplierSelector(true);
+                return;
+              }
+              setWasteFormData({
+                supplier_id: selectedSupplier.id.toString(),
+                product_id: "",
+                purchase_id: "",
+                quantity: "",
+                date: new Date().toISOString().split("T")[0],
+                description: "",
+              });
+              setShowWasteForm(true);
+            }}
             className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
           >
             Zayiat Ekle
@@ -1407,6 +1715,15 @@ export const ProducePage: React.FC = () => {
           )}
         </div>
       </Modal>
+      </>
+      )}
+
+      {/* Supplier seçilmediyse boş sayfa göster */}
+      {!selectedSupplier && !showSupplierSelector && suppliers.length > 0 && (
+        <div className="text-center py-8">
+          <p className="text-gray-500">Lütfen bir tedarikçi seçin</p>
+        </div>
+      )}
 
     </div>
   );

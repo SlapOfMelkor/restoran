@@ -17,6 +17,7 @@ import (
 // -------------------------
 
 type CreateProducePurchaseRequest struct {
+	SupplierID  uint    `json:"supplier_id"` // ProduceSupplier ID
 	ProductID   uint    `json:"product_id"`
 	Quantity    float64 `json:"quantity"`
 	UnitPrice   float64 `json:"unit_price"`
@@ -26,19 +27,22 @@ type CreateProducePurchaseRequest struct {
 }
 
 type ProducePurchaseResponse struct {
-	ID          uint    `json:"id"`
-	BranchID    uint    `json:"branch_id"`
-	ProductID   uint    `json:"product_id"`
-	ProductName string  `json:"product_name"`
-	ProductUnit string  `json:"product_unit"`
-	Quantity    float64 `json:"quantity"`
-	UnitPrice   float64 `json:"unit_price"`
-	TotalAmount float64 `json:"total_amount"`
-	Date        string  `json:"date"`
-	Description string  `json:"description"`
+	ID           uint    `json:"id"`
+	BranchID     uint    `json:"branch_id"`
+	SupplierID   uint    `json:"supplier_id"`
+	SupplierName string  `json:"supplier_name"`
+	ProductID    uint    `json:"product_id"`
+	ProductName  string  `json:"product_name"`
+	ProductUnit  string  `json:"product_unit"`
+	Quantity     float64 `json:"quantity"`
+	UnitPrice    float64 `json:"unit_price"`
+	TotalAmount  float64 `json:"total_amount"`
+	Date         string  `json:"date"`
+	Description  string  `json:"description"`
 }
 
 type CreateProducePaymentRequest struct {
+	SupplierID  uint    `json:"supplier_id"` // ProduceSupplier ID
 	Amount      float64 `json:"amount"`
 	Date        string  `json:"date"` // "2025-12-09"
 	Description string  `json:"description"`
@@ -46,11 +50,13 @@ type CreateProducePaymentRequest struct {
 }
 
 type ProducePaymentResponse struct {
-	ID          uint    `json:"id"`
-	BranchID    uint    `json:"branch_id"`
-	Amount      float64 `json:"amount"`
-	Date        string  `json:"date"`
-	Description string  `json:"description"`
+	ID           uint    `json:"id"`
+	BranchID     uint    `json:"branch_id"`
+	SupplierID   uint    `json:"supplier_id"`
+	SupplierName string  `json:"supplier_name"`
+	Amount       float64 `json:"amount"`
+	Date         string  `json:"date"`
+	Description  string  `json:"description"`
 }
 
 type ProduceBalanceResponse struct {
@@ -164,8 +170,8 @@ func CreateProducePurchaseHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Geçersiz istek gövdesi")
 		}
 
-		if body.ProductID == 0 || body.Quantity <= 0 || body.UnitPrice <= 0 {
-			return fiber.NewError(fiber.StatusBadRequest, "product_id, quantity ve unit_price zorunlu ve > 0 olmalı")
+		if body.SupplierID == 0 || body.ProductID == 0 || body.Quantity <= 0 || body.UnitPrice <= 0 {
+			return fiber.NewError(fiber.StatusBadRequest, "supplier_id, product_id, quantity ve unit_price zorunlu ve > 0 olmalı")
 		}
 
 		branchID, err := resolveBranchIDFromBodyOrRole(c, body.BranchID)
@@ -178,6 +184,12 @@ func CreateProducePurchaseHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Tarih formatı 'YYYY-MM-DD' olmalı")
 		}
 
+		// Tedarikçi var mı ve bu şubeye ait mi?
+		var supplier models.ProduceSupplier
+		if err := database.DB.First(&supplier, "id = ? AND branch_id = ?", body.SupplierID, branchID).Error; err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Tedarikçi bulunamadı veya bu şubeye ait değil")
+		}
+
 		// Ürün var mı?
 		var product models.ProduceProduct
 		if err := database.DB.First(&product, "id = ?", body.ProductID).Error; err != nil {
@@ -188,6 +200,7 @@ func CreateProducePurchaseHandler() fiber.Handler {
 
 		purchase := models.ProducePurchase{
 			BranchID:    branchID,
+			SupplierID:  body.SupplierID,
 			ProductID:   body.ProductID,
 			Quantity:    body.Quantity,
 			UnitPrice:   body.UnitPrice,
@@ -230,16 +243,18 @@ func CreateProducePurchaseHandler() fiber.Handler {
 		}
 
 		return c.Status(fiber.StatusCreated).JSON(ProducePurchaseResponse{
-			ID:          purchase.ID,
-			BranchID:    purchase.BranchID,
-			ProductID:   purchase.ProductID,
-			ProductName: product.Name,
-			ProductUnit: product.Unit,
-			Quantity:    purchase.Quantity,
-			UnitPrice:   purchase.UnitPrice,
-			TotalAmount: purchase.TotalAmount,
-			Date:        purchase.Date.Format("2006-01-02"),
-			Description: purchase.Description,
+			ID:           purchase.ID,
+			BranchID:     purchase.BranchID,
+			SupplierID:   purchase.SupplierID,
+			SupplierName: supplier.Name,
+			ProductID:    purchase.ProductID,
+			ProductName:  product.Name,
+			ProductUnit:  product.Unit,
+			Quantity:     purchase.Quantity,
+			UnitPrice:    purchase.UnitPrice,
+			TotalAmount:  purchase.TotalAmount,
+			Date:         purchase.Date.Format("2006-01-02"),
+			Description:  purchase.Description,
 		})
 	}
 }
@@ -256,9 +271,20 @@ func ListProducePurchasesHandler() fiber.Handler {
 		toStr := c.Query("to")
 		productIDStr := c.Query("product_id")
 
+		supplierIDStr := c.Query("supplier_id")
+
 		dbq := database.DB.Model(&models.ProducePurchase{}).
 			Preload("Product").
+			Preload("Supplier").
 			Where("branch_id = ?", branchID)
+
+		if supplierIDStr != "" {
+			var sid uint
+			if _, err := fmt.Sscan(supplierIDStr, &sid); err != nil || sid == 0 {
+				return fiber.NewError(fiber.StatusBadRequest, "supplier_id geçersiz")
+			}
+			dbq = dbq.Where("supplier_id = ?", sid)
+		}
 
 		if fromStr != "" {
 			from, err := time.Parse("2006-01-02", fromStr)
@@ -292,11 +318,13 @@ func ListProducePurchasesHandler() fiber.Handler {
 		resp := make([]ProducePurchaseResponse, 0, len(rows))
 		for _, r := range rows {
 			resp = append(resp, ProducePurchaseResponse{
-				ID:          r.ID,
-				BranchID:    r.BranchID,
-				ProductID:   r.ProductID,
-				ProductName: r.Product.Name,
-				ProductUnit: r.Product.Unit,
+				ID:           r.ID,
+				BranchID:     r.BranchID,
+				SupplierID:   r.SupplierID,
+				SupplierName: r.Supplier.Name,
+				ProductID:    r.ProductID,
+				ProductName:  r.Product.Name,
+				ProductUnit:  r.Product.Unit,
 				Quantity:    r.Quantity,
 				UnitPrice:   r.UnitPrice,
 				TotalAmount: r.TotalAmount,
@@ -317,19 +345,29 @@ func GetProduceBalanceHandler() fiber.Handler {
 			return err
 		}
 
+		supplierIDStr := c.Query("supplier_id")
+
+		dbqPurchase := database.DB.Model(&models.ProducePurchase{}).
+			Where("branch_id = ?", branchID)
+		dbqPayment := database.DB.Model(&models.ProducePayment{}).
+			Where("branch_id = ?", branchID)
+
+		if supplierIDStr != "" {
+			var sid uint
+			if _, err := fmt.Sscan(supplierIDStr, &sid); err != nil || sid == 0 {
+				return fiber.NewError(fiber.StatusBadRequest, "supplier_id geçersiz")
+			}
+			dbqPurchase = dbqPurchase.Where("supplier_id = ?", sid)
+			dbqPayment = dbqPayment.Where("supplier_id = ?", sid)
+		}
+
 		var totalPurchases float64
-		if err := database.DB.Model(&models.ProducePurchase{}).
-			Where("branch_id = ?", branchID).
-			Select("COALESCE(SUM(total_amount), 0)").
-			Scan(&totalPurchases).Error; err != nil {
+		if err := dbqPurchase.Select("COALESCE(SUM(total_amount), 0)").Scan(&totalPurchases).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Toplam alımlar hesaplanamadı")
 		}
 
 		var totalPayments float64
-		if err := database.DB.Model(&models.ProducePayment{}).
-			Where("branch_id = ?", branchID).
-			Select("COALESCE(SUM(amount), 0)").
-			Scan(&totalPayments).Error; err != nil {
+		if err := dbqPayment.Select("COALESCE(SUM(amount), 0)").Scan(&totalPayments).Error; err != nil {
 			return fiber.NewError(fiber.StatusInternalServerError, "Toplam ödemeler hesaplanamadı")
 		}
 
@@ -445,8 +483,8 @@ func CreateProducePaymentHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Geçersiz istek gövdesi")
 		}
 
-		if body.Amount <= 0 {
-			return fiber.NewError(fiber.StatusBadRequest, "amount zorunlu ve > 0 olmalı")
+		if body.SupplierID == 0 || body.Amount <= 0 {
+			return fiber.NewError(fiber.StatusBadRequest, "supplier_id ve amount zorunlu ve > 0 olmalı")
 		}
 
 		branchID, err := resolveBranchIDFromBodyOrRole(c, body.BranchID)
@@ -459,8 +497,15 @@ func CreateProducePaymentHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "Tarih formatı 'YYYY-MM-DD' olmalı")
 		}
 
+		// Tedarikçi var mı ve bu şubeye ait mi?
+		var supplier models.ProduceSupplier
+		if err := database.DB.First(&supplier, "id = ? AND branch_id = ?", body.SupplierID, branchID).Error; err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "Tedarikçi bulunamadı veya bu şubeye ait değil")
+		}
+
 		payment := models.ProducePayment{
 			BranchID:    branchID,
+			SupplierID:  body.SupplierID,
 			Amount:      body.Amount,
 			Date:        d,
 			Description: body.Description,
@@ -497,11 +542,13 @@ func CreateProducePaymentHandler() fiber.Handler {
 		}
 
 		return c.Status(fiber.StatusCreated).JSON(ProducePaymentResponse{
-			ID:          payment.ID,
-			BranchID:    payment.BranchID,
-			Amount:      payment.Amount,
-			Date:        payment.Date.Format("2006-01-02"),
-			Description: payment.Description,
+			ID:           payment.ID,
+			BranchID:     payment.BranchID,
+			SupplierID:   payment.SupplierID,
+			SupplierName: supplier.Name,
+			Amount:       payment.Amount,
+			Date:         payment.Date.Format("2006-01-02"),
+			Description:  payment.Description,
 		})
 	}
 }
@@ -516,9 +563,19 @@ func ListProducePaymentsHandler() fiber.Handler {
 
 		fromStr := c.Query("from")
 		toStr := c.Query("to")
+		supplierIDStr := c.Query("supplier_id")
 
 		dbq := database.DB.Model(&models.ProducePayment{}).
+			Preload("Supplier").
 			Where("branch_id = ?", branchID)
+
+		if supplierIDStr != "" {
+			var sid uint
+			if _, err := fmt.Sscan(supplierIDStr, &sid); err != nil || sid == 0 {
+				return fiber.NewError(fiber.StatusBadRequest, "supplier_id geçersiz")
+			}
+			dbq = dbq.Where("supplier_id = ?", sid)
+		}
 
 		if fromStr != "" {
 			from, err := time.Parse("2006-01-02", fromStr)

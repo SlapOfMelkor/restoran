@@ -16,6 +16,13 @@ interface TradeTransaction {
   updated_at: string;
 }
 
+interface TradeTransactionWithLog extends TradeTransaction {
+  created_by_user_id?: number;
+  created_by_user_name?: string;
+  log_id?: number;
+  is_undone?: boolean;
+}
+
 interface TradePayment {
   id: number;
   branch_id: number;
@@ -24,6 +31,13 @@ interface TradePayment {
   payment_date: string;
   description: string;
   created_at: string;
+}
+
+interface TradePaymentWithLog extends TradePayment {
+  created_by_user_id?: number;
+  created_by_user_name?: string;
+  log_id?: number;
+  is_undone?: boolean;
 }
 
 interface Property {
@@ -36,16 +50,38 @@ interface Property {
   updated_at: string;
 }
 
+interface PropertyWithLog extends Property {
+  created_by_user_id?: number;
+  created_by_user_name?: string;
+  log_id?: number;
+  is_undone?: boolean;
+}
+
+interface AuditLog {
+  id: number;
+  created_at: string;
+  branch_id: number | null;
+  user_id: number;
+  user_name: string;
+  entity_type: string;
+  entity_id: number;
+  action: "create" | "update" | "delete" | "undo";
+  description: string;
+  is_undone: boolean;
+  undone_by: number | null;
+  undone_at: string | null;
+}
+
 type TabType = "trades" | "properties";
 
 export const TradesPage: React.FC = () => {
   const { user, selectedBranchId } = useAuth();
-  const [transactions, setTransactions] = useState<TradeTransaction[]>([]);
-  const [payments, setPayments] = useState<{ [key: number]: TradePayment[] }>({});
+  const [transactions, setTransactions] = useState<TradeTransactionWithLog[]>([]);
+  const [payments, setPayments] = useState<{ [key: number]: TradePaymentWithLog[] }>({});
   const [loading, setLoading] = useState(false);
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [selectedTransaction, setSelectedTransaction] = useState<TradeTransaction | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<TradeTransactionWithLog | null>(null);
   const [transactionFormData, setTransactionFormData] = useState({
     type: "receivable" as "receivable" | "payable",
     amount: "",
@@ -62,7 +98,7 @@ export const TradesPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>("trades");
   
   // Property states
-  const [properties, setProperties] = useState<Property[]>([]);
+  const [properties, setProperties] = useState<PropertyWithLog[]>([]);
   const [loadingProperties, setLoadingProperties] = useState(false);
   const [showPropertyForm, setShowPropertyForm] = useState(false);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
@@ -84,13 +120,77 @@ export const TradesPage: React.FC = () => {
       }
 
       const res = await apiClient.get("/trades", { params });
-      setTransactions(res.data || []);
+      
+      // Audit log'ları çek
+      const logParams: any = {
+        entity_type: "trade_transaction",
+      };
+      if (user?.role === "super_admin") {
+        if (selectedBranchId) {
+          logParams.branch_id = selectedBranchId;
+        }
+      } else if (user?.role === "branch_admin" && user.branch_id) {
+        logParams.branch_id = user.branch_id;
+      }
+      const logsRes = await apiClient.get("/audit-logs", { params: logParams });
+      
+      // Transaction'ları log'larla birleştir
+      const transactionsWithLogs: TradeTransactionWithLog[] = (res.data || []).map((tx: TradeTransaction) => {
+        const createLog = logsRes.data.find(
+          (log: AuditLog) =>
+            log.entity_type === "trade_transaction" &&
+            log.entity_id === tx.id &&
+            log.action === "create"
+        );
+        
+        return {
+          ...tx,
+          created_by_user_id: createLog?.user_id,
+          created_by_user_name: createLog?.user_name,
+          log_id: createLog?.id,
+          is_undone: createLog?.is_undone || false,
+        };
+      });
+      
+      setTransactions(transactionsWithLogs);
 
       // Her işlem için ödemeleri çek
       const paymentPromises = (res.data || []).map(async (tx: TradeTransaction) => {
         try {
           const paymentsRes = await apiClient.get(`/trades/${tx.id}/payments`);
-          return { txId: tx.id, payments: paymentsRes.data || [] };
+          
+          // Ödemeler için audit log'ları çek
+          const paymentLogParams: any = {
+            entity_type: "trade_payment",
+          };
+          if (user?.role === "super_admin") {
+            if (selectedBranchId) {
+              paymentLogParams.branch_id = selectedBranchId;
+            }
+          } else if (user?.role === "branch_admin" && user.branch_id) {
+            paymentLogParams.branch_id = user.branch_id;
+          }
+          const paymentLogsRes = await apiClient.get("/audit-logs", { params: paymentLogParams });
+          
+          // Payment'ları log'larla birleştir
+          const paymentsWithLogs: TradePaymentWithLog[] = (paymentsRes.data || []).map((payment: TradePayment) => {
+            const createLog = paymentLogsRes.data.find(
+              (log: AuditLog) =>
+                log.entity_type === "trade_payment" &&
+                log.entity_id === payment.id &&
+                log.action === "create"
+            );
+            
+            return {
+              ...payment,
+              created_by_user_id: createLog?.user_id,
+              created_by_user_name: createLog?.user_name,
+              log_id: createLog?.id,
+              is_undone: createLog?.is_undone || false,
+            };
+          });
+          
+          return { txId: tx.id, payments: paymentsWithLogs };
         } catch (err) {
           console.error(`İşlem ${tx.id} ödemeleri yüklenemedi:`, err);
           return { txId: tx.id, payments: [] };
@@ -98,7 +198,7 @@ export const TradesPage: React.FC = () => {
       });
 
       const paymentResults = await Promise.all(paymentPromises);
-      const paymentsMap: { [key: number]: TradePayment[] } = {};
+      const paymentsMap: { [key: number]: TradePaymentWithLog[] } = {};
       paymentResults.forEach((result) => {
         paymentsMap[result.txId] = result.payments;
       });
@@ -127,7 +227,39 @@ export const TradesPage: React.FC = () => {
         params.branch_id = selectedBranchId;
       }
       const res = await apiClient.get("/properties", { params });
-      setProperties(res.data || []);
+      
+      // Audit log'ları çek
+      const logParams: any = {
+        entity_type: "property",
+      };
+      if (user?.role === "super_admin") {
+        if (selectedBranchId) {
+          logParams.branch_id = selectedBranchId;
+        }
+      } else if (user?.role === "branch_admin" && user.branch_id) {
+        logParams.branch_id = user.branch_id;
+      }
+      const logsRes = await apiClient.get("/audit-logs", { params: logParams });
+      
+      // Property'leri log'larla birleştir
+      const propertiesWithLogs: PropertyWithLog[] = (res.data || []).map((prop: Property) => {
+        const createLog = logsRes.data.find(
+          (log: AuditLog) =>
+            log.entity_type === "property" &&
+            log.entity_id === prop.id &&
+            log.action === "create"
+        );
+        
+        return {
+          ...prop,
+          created_by_user_id: createLog?.user_id,
+          created_by_user_name: createLog?.user_name,
+          log_id: createLog?.id,
+          is_undone: createLog?.is_undone || false,
+        };
+      });
+      
+      setProperties(propertiesWithLogs);
     } catch (err) {
       console.error("Mal mülkler yüklenemedi:", err);
       alert("Mal mülkler yüklenemedi");
@@ -207,6 +339,88 @@ export const TradesPage: React.FC = () => {
       description: property.description || "",
     });
     setShowPropertyForm(true);
+  };
+
+  // Geri Alma Fonksiyonları
+  const handleUndoTransaction = async (logId: number, _txId: number) => {
+    if (!confirm("Bu işlemi geri almak istediğinize emin misiniz?")) {
+      return;
+    }
+
+    try {
+      await apiClient.post(`/audit-logs/${logId}/undo`);
+      alert("İşlem başarıyla geri alındı");
+      fetchTransactions();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Geri alma işlemi başarısız");
+    }
+  };
+
+  const handleUndoPayment = async (logId: number, _paymentId: number) => {
+    if (!confirm("Bu ödemeyi geri almak istediğinize emin misiniz?")) {
+      return;
+    }
+
+    try {
+      await apiClient.post(`/audit-logs/${logId}/undo`);
+      alert("Ödeme başarıyla geri alındı");
+      fetchTransactions();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Geri alma işlemi başarısız");
+    }
+  };
+
+  const handleUndoProperty = async (logId: number, _propertyId: number) => {
+    if (!confirm("Bu mal mülk kaydını geri almak istediğinize emin misiniz?")) {
+      return;
+    }
+
+    try {
+      await apiClient.post(`/audit-logs/${logId}/undo`);
+      alert("Mal mülk kaydı başarıyla geri alındı");
+      fetchProperties();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Geri alma işlemi başarısız");
+    }
+  };
+
+  const canUndoTransaction = (tx: TradeTransactionWithLog): boolean => {
+    if (!tx.log_id || tx.is_undone) {
+      return false;
+    }
+    if (user?.role === "super_admin") {
+      return true;
+    }
+    if (user?.role === "branch_admin" && user.branch_id) {
+      return tx.branch_id === user.branch_id;
+    }
+    return false;
+  };
+
+  const canUndoPayment = (payment: TradePaymentWithLog): boolean => {
+    if (!payment.log_id || payment.is_undone) {
+      return false;
+    }
+    if (user?.role === "super_admin") {
+      return true;
+    }
+    if (user?.role === "branch_admin" && user.branch_id) {
+      return payment.branch_id === user.branch_id;
+    }
+    return false;
+  };
+
+  const canUndoProperty = (property: PropertyWithLog): boolean => {
+    if (!property.log_id || property.is_undone) {
+      return false;
+    }
+    if (user?.role === "super_admin") {
+      return true;
+    }
+    if (user?.role === "branch_admin" && user.branch_id) {
+      return property.branch_id === user.branch_id;
+    }
+    return false;
   };
 
   const handleTransactionSubmit = async (e: React.FormEvent) => {
@@ -684,15 +898,38 @@ export const TradesPage: React.FC = () => {
                         <div className="flex-1">
                           <div className="flex items-start justify-between mb-2">
                             <div>
-                              <h3 className="font-semibold text-[#222222]">{tx.description}</h3>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-[#222222]">{tx.description}</h3>
+                                {tx.is_undone && (
+                                  <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">
+                                    (Geri Alındı)
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-sm text-[#555555] mt-1">{tx.date}</div>
+                              {tx.created_by_user_name && (
+                                <div className="text-xs text-[#777777] mt-1">
+                                  {tx.created_by_user_name} tarafından oluşturuldu
+                                </div>
+                              )}
                             </div>
-                            <button
-                              onClick={() => handleDeleteTransaction(tx)}
-                              className="text-red-600 hover:text-red-800 text-sm px-2 py-1"
-                            >
-                              Sil
-                            </button>
+                            <div className="flex gap-2">
+                              {tx.log_id && canUndoTransaction(tx) && (
+                                <button
+                                  onClick={() => handleUndoTransaction(tx.log_id!, tx.id)}
+                                  className="text-orange-600 hover:text-orange-800 text-sm px-2 py-1"
+                                  title="Geri Al"
+                                >
+                                  Geri Al
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDeleteTransaction(tx)}
+                                className="text-red-600 hover:text-red-800 text-sm px-2 py-1"
+                              >
+                                Sil
+                              </button>
+                            </div>
                           </div>
                           <div className="mt-3">
                             <div className="text-lg font-bold text-green-700">
@@ -704,7 +941,7 @@ export const TradesPage: React.FC = () => {
                           </div>
                         </div>
                         <div className="flex flex-col gap-2">
-                          {tx.remaining > 0 && (
+                          {tx.remaining > 0 && !tx.is_undone && (
                             <button
                               onClick={() => {
                                 setSelectedTransaction(tx);
@@ -727,20 +964,38 @@ export const TradesPage: React.FC = () => {
                                 className="flex items-center justify-between bg-green-50 rounded p-2"
                               >
                                 <div className="flex-1">
-                                  <div className="text-sm font-medium text-[#222222]">
-                                    {formatCurrency(payment.amount)}
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-sm font-medium text-[#222222]">
+                                      {formatCurrency(payment.amount)}
+                                    </div>
+                                    {payment.is_undone && (
+                                      <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">
+                                        (Geri Alındı)
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="text-xs text-[#555555]">
                                     {payment.payment_date}
                                     {payment.description && ` - ${payment.description}`}
                                   </div>
                                 </div>
-                                <button
-                                  onClick={() => handleDeletePayment(tx.id, payment.id)}
-                                  className="text-red-600 hover:text-red-800 text-xs px-2 py-1"
-                                >
-                                  Sil
-                                </button>
+                                <div className="flex gap-2">
+                                  {payment.log_id && canUndoPayment(payment) && (
+                                    <button
+                                      onClick={() => handleUndoPayment(payment.log_id!, payment.id)}
+                                      className="text-orange-600 hover:text-orange-800 text-xs px-2 py-1"
+                                      title="Geri Al"
+                                    >
+                                      Geri Al
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleDeletePayment(tx.id, payment.id)}
+                                    className="text-red-600 hover:text-red-800 text-xs px-2 py-1"
+                                  >
+                                    Sil
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -772,15 +1027,38 @@ export const TradesPage: React.FC = () => {
                         <div className="flex-1">
                           <div className="flex items-start justify-between mb-2">
                             <div>
-                              <h3 className="font-semibold text-[#222222]">{tx.description}</h3>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-[#222222]">{tx.description}</h3>
+                                {tx.is_undone && (
+                                  <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">
+                                    (Geri Alındı)
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-sm text-[#555555] mt-1">{tx.date}</div>
+                              {tx.created_by_user_name && (
+                                <div className="text-xs text-[#777777] mt-1">
+                                  {tx.created_by_user_name} tarafından oluşturuldu
+                                </div>
+                              )}
                             </div>
-                            <button
-                              onClick={() => handleDeleteTransaction(tx)}
-                              className="text-red-600 hover:text-red-800 text-sm px-2 py-1"
-                            >
-                              Sil
-                            </button>
+                            <div className="flex gap-2">
+                              {tx.log_id && canUndoTransaction(tx) && (
+                                <button
+                                  onClick={() => handleUndoTransaction(tx.log_id!, tx.id)}
+                                  className="text-orange-600 hover:text-orange-800 text-sm px-2 py-1"
+                                  title="Geri Al"
+                                >
+                                  Geri Al
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDeleteTransaction(tx)}
+                                className="text-red-600 hover:text-red-800 text-sm px-2 py-1"
+                              >
+                                Sil
+                              </button>
+                            </div>
                           </div>
                           <div className="mt-3">
                             <div className="text-lg font-bold text-red-700">
@@ -792,7 +1070,7 @@ export const TradesPage: React.FC = () => {
                           </div>
                         </div>
                         <div className="flex flex-col gap-2">
-                          {tx.remaining > 0 && (
+                          {tx.remaining > 0 && !tx.is_undone && (
                             <button
                               onClick={() => {
                                 setSelectedTransaction(tx);
@@ -815,20 +1093,38 @@ export const TradesPage: React.FC = () => {
                                 className="flex items-center justify-between bg-red-50 rounded p-2"
                               >
                                 <div className="flex-1">
-                                  <div className="text-sm font-medium text-[#222222]">
-                                    {formatCurrency(payment.amount)}
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-sm font-medium text-[#222222]">
+                                      {formatCurrency(payment.amount)}
+                                    </div>
+                                    {payment.is_undone && (
+                                      <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">
+                                        (Geri Alındı)
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="text-xs text-[#555555]">
                                     {payment.payment_date}
                                     {payment.description && ` - ${payment.description}`}
                                   </div>
                                 </div>
-                                <button
-                                  onClick={() => handleDeletePayment(tx.id, payment.id)}
-                                  className="text-red-600 hover:text-red-800 text-xs px-2 py-1"
-                                >
-                                  Sil
-                                </button>
+                                <div className="flex gap-2">
+                                  {payment.log_id && canUndoPayment(payment) && (
+                                    <button
+                                      onClick={() => handleUndoPayment(payment.log_id!, payment.id)}
+                                      className="text-orange-600 hover:text-orange-800 text-xs px-2 py-1"
+                                      title="Geri Al"
+                                    >
+                                      Geri Al
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleDeletePayment(tx.id, payment.id)}
+                                    className="text-red-600 hover:text-red-800 text-xs px-2 py-1"
+                                  >
+                                    Sil
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -985,12 +1281,24 @@ export const TradesPage: React.FC = () => {
                         <div className="flex-1">
                           <div className="flex items-start justify-between mb-2">
                             <div>
-                              <h3 className="font-semibold text-[#222222] text-lg">
-                                {property.name}
-                              </h3>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-[#222222] text-lg">
+                                  {property.name}
+                                </h3>
+                                {property.is_undone && (
+                                  <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">
+                                    (Geri Alındı)
+                                  </span>
+                                )}
+                              </div>
                               {property.description && (
                                 <div className="text-sm text-[#555555] mt-1">
                                   {property.description}
+                                </div>
+                              )}
+                              {property.created_by_user_name && (
+                                <div className="text-xs text-[#777777] mt-1">
+                                  {property.created_by_user_name} tarafından oluşturuldu
                                 </div>
                               )}
                             </div>
@@ -1002,18 +1310,30 @@ export const TradesPage: React.FC = () => {
                           </div>
                         </div>
                         <div className="flex flex-col gap-2">
-                          <button
-                            onClick={() => handleEditProperty(property)}
-                            className="px-4 py-2 rounded text-sm font-medium transition-colors bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
-                          >
-                            Düzenle
-                          </button>
-                          <button
-                            onClick={() => handleDeleteProperty(property)}
-                            className="px-4 py-2 rounded text-sm font-medium transition-colors bg-red-600 hover:bg-red-700 text-white whitespace-nowrap"
-                          >
-                            Sil
-                          </button>
+                          {!property.is_undone && (
+                            <>
+                              <button
+                                onClick={() => handleEditProperty(property)}
+                                className="px-4 py-2 rounded text-sm font-medium transition-colors bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
+                              >
+                                Düzenle
+                              </button>
+                              <button
+                                onClick={() => handleDeleteProperty(property)}
+                                className="px-4 py-2 rounded text-sm font-medium transition-colors bg-red-600 hover:bg-red-700 text-white whitespace-nowrap"
+                              >
+                                Sil
+                              </button>
+                            </>
+                          )}
+                          {property.log_id && canUndoProperty(property) && (
+                            <button
+                              onClick={() => handleUndoProperty(property.log_id!, property.id)}
+                              className="px-4 py-2 rounded text-sm font-medium transition-colors bg-orange-600 hover:bg-orange-700 text-white whitespace-nowrap"
+                            >
+                              Geri Al
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
