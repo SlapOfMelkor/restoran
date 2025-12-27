@@ -1137,6 +1137,7 @@ export const TradesPage: React.FC = () => {
             </div>
           )}
         </div>
+        </div>
       )}
 
       {/* Mal Mülk Tab */}
