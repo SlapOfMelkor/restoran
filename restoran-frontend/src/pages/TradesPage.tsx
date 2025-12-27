@@ -26,6 +26,18 @@ interface TradePayment {
   created_at: string;
 }
 
+interface Property {
+  id: number;
+  branch_id: number;
+  name: string;
+  value: number;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+type TabType = "trades" | "properties";
+
 export const TradesPage: React.FC = () => {
   const { user, selectedBranchId } = useAuth();
   const [transactions, setTransactions] = useState<TradeTransaction[]>([]);
@@ -47,6 +59,18 @@ export const TradesPage: React.FC = () => {
   });
   const [submitting, setSubmitting] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"all" | "receivable" | "payable">("all");
+  const [activeTab, setActiveTab] = useState<TabType>("trades");
+  
+  // Property states
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [loadingProperties, setLoadingProperties] = useState(false);
+  const [showPropertyForm, setShowPropertyForm] = useState(false);
+  const [editingProperty, setEditingProperty] = useState<Property | null>(null);
+  const [propertyFormData, setPropertyFormData] = useState({
+    name: "",
+    value: "",
+    description: "",
+  });
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -88,8 +112,102 @@ export const TradesPage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchTransactions();
-  }, [user, selectedBranchId, typeFilter]);
+    if (activeTab === "trades") {
+      fetchTransactions();
+    } else {
+      fetchProperties();
+    }
+  }, [user, selectedBranchId, typeFilter, activeTab]);
+
+  const fetchProperties = async () => {
+    setLoadingProperties(true);
+    try {
+      const params: any = {};
+      if (user?.role === "super_admin" && selectedBranchId) {
+        params.branch_id = selectedBranchId;
+      }
+      const res = await apiClient.get("/properties", { params });
+      setProperties(res.data || []);
+    } catch (err) {
+      console.error("Mal mülkler yüklenemedi:", err);
+      alert("Mal mülkler yüklenemedi");
+    } finally {
+      setLoadingProperties(false);
+    }
+  };
+
+  const handlePropertySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const valueNum = parseFloat(propertyFormData.value);
+
+    if (!propertyFormData.name.trim()) {
+      alert("Lütfen isim girin");
+      return;
+    }
+
+    if (!propertyFormData.value || isNaN(valueNum) || valueNum < 0) {
+      alert("Lütfen geçerli bir değer girin (0 veya daha büyük)");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload: any = {
+        name: propertyFormData.name.trim(),
+        value: valueNum,
+        description: propertyFormData.description.trim(),
+      };
+
+      if (user?.role === "super_admin" && selectedBranchId) {
+        payload.branch_id = selectedBranchId;
+      }
+
+      if (editingProperty) {
+        await apiClient.put(`/properties/${editingProperty.id}`, payload);
+        alert("Mal mülk başarıyla güncellendi");
+      } else {
+        await apiClient.post("/properties", payload);
+        alert("Mal mülk başarıyla oluşturuldu");
+      }
+
+      setPropertyFormData({
+        name: "",
+        value: "",
+        description: "",
+      });
+      setShowPropertyForm(false);
+      setEditingProperty(null);
+      fetchProperties();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Mal mülk kaydedilemedi");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteProperty = async (property: Property) => {
+    if (!confirm(`Bu mal mülkü (${property.name}) silmek istediğinize emin misiniz?`)) {
+      return;
+    }
+
+    try {
+      await apiClient.delete(`/properties/${property.id}`);
+      alert("Mal mülk başarıyla silindi");
+      fetchProperties();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Mal mülk silinemedi");
+    }
+  };
+
+  const handleEditProperty = (property: Property) => {
+    setEditingProperty(property);
+    setPropertyFormData({
+      name: property.name,
+      value: property.value.toString(),
+      description: property.description || "",
+    });
+    setShowPropertyForm(true);
+  };
 
   const handleTransactionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -212,11 +330,99 @@ export const TradesPage: React.FC = () => {
   const receivableTransactions = transactions.filter((tx) => tx.type === "receivable");
   const payableTransactions = transactions.filter((tx) => tx.type === "payable");
 
+  // Toplam hesaplamaları
+  const totalReceivable = receivableTransactions.reduce((sum, tx) => sum + tx.remaining, 0);
+  const totalPayable = payableTransactions.reduce((sum, tx) => sum + tx.remaining, 0);
+  const totalPropertyValue = properties.reduce((sum, p) => sum + p.value, 0);
+  const netReceivable = totalReceivable - totalPayable;
+
   return (
     <div className="space-y-6">
+      {/* Başlık ve Tab'lar */}
+      <div className="flex flex-col gap-4">
+        <h1 className="text-2xl font-bold text-[#222222]">Ticaret</h1>
+        
+        {/* Özet Kartları */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Toplam Alacak */}
+          <div className="bg-white border border-green-200 rounded-lg p-4">
+            <div className="text-sm text-[#555555] mb-1">Toplam Alacak</div>
+            <div className="text-2xl font-bold text-green-700">
+              {formatCurrency(totalReceivable)}
+            </div>
+            <div className="text-xs text-[#777777] mt-1">
+              {receivableTransactions.length} işlem
+            </div>
+          </div>
+
+          {/* Toplam Verecek */}
+          <div className="bg-white border border-red-200 rounded-lg p-4">
+            <div className="text-sm text-[#555555] mb-1">Toplam Verecek</div>
+            <div className="text-2xl font-bold text-red-700">
+              {formatCurrency(totalPayable)}
+            </div>
+            <div className="text-xs text-[#777777] mt-1">
+              {payableTransactions.length} işlem
+            </div>
+          </div>
+
+          {/* Net Alacak */}
+          <div className={`bg-white border rounded-lg p-4 ${
+            netReceivable >= 0 ? 'border-blue-200' : 'border-orange-200'
+          }`}>
+            <div className="text-sm text-[#555555] mb-1">Net Alacak</div>
+            <div className={`text-2xl font-bold ${
+              netReceivable >= 0 ? 'text-blue-700' : 'text-orange-700'
+            }`}>
+              {formatCurrency(netReceivable)}
+            </div>
+            <div className="text-xs text-[#777777] mt-1">
+              {netReceivable >= 0 ? 'Alacaklı' : 'Borçlu'}
+            </div>
+          </div>
+
+          {/* Toplam Mal Mülk */}
+          <div className="bg-white border border-[#8F1A9F] rounded-lg p-4">
+            <div className="text-sm text-[#555555] mb-1">Toplam Mal Mülk</div>
+            <div className="text-2xl font-bold text-[#8F1A9F]">
+              {formatCurrency(totalPropertyValue)}
+            </div>
+            <div className="text-xs text-[#777777] mt-1">
+              {properties.length} kayıt
+            </div>
+          </div>
+        </div>
+        
+        {/* Tab Butonları */}
+        <div className="flex gap-2 border-b border-[#E5E5E5]">
+          <button
+            onClick={() => setActiveTab("trades")}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === "trades"
+                ? "text-[#8F1A9F] border-b-2 border-[#8F1A9F]"
+                : "text-[#555555] hover:text-[#222222]"
+            }`}
+          >
+            Alacak/Verecek
+          </button>
+          <button
+            onClick={() => setActiveTab("properties")}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === "properties"
+                ? "text-[#8F1A9F] border-b-2 border-[#8F1A9F]"
+                : "text-[#555555] hover:text-[#222222]"
+            }`}
+          >
+            Mal Mülk
+          </button>
+        </div>
+      </div>
+
+      {/* Ticaret İşlemleri Tab */}
+      {activeTab === "trades" && (
+        <>
       {/* Başlık ve Filtre */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-[#222222]">Ticaret İşlemleri</h1>
         <div className="flex flex-col sm:flex-row gap-3">
           <select
             value={typeFilter}
@@ -635,6 +841,188 @@ export const TradesPage: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+      </>
+
+      {/* Mal Mülk Tab */}
+      {activeTab === "properties" && (
+        <>
+          {/* Başlık ve Buton */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <h2 className="text-xl font-bold text-[#222222]">Mal Mülk</h2>
+            <button
+              onClick={() => {
+                setEditingProperty(null);
+                setPropertyFormData({
+                  name: "",
+                  value: "",
+                  description: "",
+                });
+                setShowPropertyForm(true);
+              }}
+              className="px-6 py-2 rounded-xl text-sm font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
+            >
+              Mal Mülk Ekle
+            </button>
+          </div>
+
+          {/* Mal Mülk Form Modal */}
+          <Modal
+            isOpen={showPropertyForm}
+            onClose={() => {
+              setShowPropertyForm(false);
+              setEditingProperty(null);
+              setPropertyFormData({
+                name: "",
+                value: "",
+                description: "",
+              });
+            }}
+            title={editingProperty ? "Mal Mülk Düzenle" : "Yeni Mal Mülk Ekle"}
+            maxWidth="md"
+          >
+            <form onSubmit={handlePropertySubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[#222222] mb-2">
+                  İsim *
+                </label>
+                <input
+                  type="text"
+                  value={propertyFormData.name}
+                  onChange={(e) =>
+                    setPropertyFormData({
+                      ...propertyFormData,
+                      name: e.target.value,
+                    })
+                  }
+                  className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                  placeholder="Örn: Dükkan, Araç, Makine..."
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#222222] mb-2">
+                  Değer (TL) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={propertyFormData.value}
+                  onChange={(e) =>
+                    setPropertyFormData({
+                      ...propertyFormData,
+                      value: e.target.value,
+                    })
+                  }
+                  className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#222222] mb-2">
+                  Açıklama
+                </label>
+                <textarea
+                  value={propertyFormData.description}
+                  onChange={(e) =>
+                    setPropertyFormData({
+                      ...propertyFormData,
+                      description: e.target.value,
+                    })
+                  }
+                  className="w-full bg-white border border-[#E5E5E5] rounded px-3 py-2 text-sm text-[#000000] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+                  rows={3}
+                  placeholder="Mal mülk hakkında açıklama..."
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2 rounded text-sm font-medium transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
+                >
+                  {submitting ? (editingProperty ? "Güncelleniyor..." : "Oluşturuluyor...") : (editingProperty ? "Güncelle" : "Oluştur")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPropertyForm(false);
+                    setEditingProperty(null);
+                    setPropertyFormData({
+                      name: "",
+                      value: "",
+                      description: "",
+                    });
+                  }}
+                  className="px-4 py-2 bg-[#E5E5E5] hover:bg-[#d5d5d5] rounded text-sm transition-colors text-[#8F1A9F]"
+                >
+                  İptal
+                </button>
+              </div>
+            </form>
+          </Modal>
+
+          {/* Mal Mülk Listesi */}
+          {loadingProperties ? (
+            <div className="text-center py-8">Yükleniyor...</div>
+          ) : (
+            <div className="space-y-3">
+              {properties.length === 0 ? (
+                <div className="bg-white border border-[#E5E5E5] rounded-lg p-6 text-center text-[#555555]">
+                  Henüz mal mülk kaydı bulunmuyor
+                </div>
+              ) : (
+                <>
+                  {/* Mal Mülk Kartları */}
+                  {properties.map((property) => (
+                    <div
+                      key={property.id}
+                      className="bg-white border border-[#E5E5E5] rounded-lg p-4 hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <h3 className="font-semibold text-[#222222] text-lg">
+                                {property.name}
+                              </h3>
+                              {property.description && (
+                                <div className="text-sm text-[#555555] mt-1">
+                                  {property.description}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="mt-3">
+                            <div className="text-xl font-bold text-[#8F1A9F]">
+                              {formatCurrency(property.value)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            onClick={() => handleEditProperty(property)}
+                            className="px-4 py-2 rounded text-sm font-medium transition-colors bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
+                          >
+                            Düzenle
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProperty(property)}
+                            className="px-4 py-2 rounded text-sm font-medium transition-colors bg-red-600 hover:bg-red-700 text-white whitespace-nowrap"
+                          >
+                            Sil
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

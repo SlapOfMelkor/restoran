@@ -181,6 +181,12 @@ func main() {
 	protected.Get("/trades/:id/payments", trade.ListTradePaymentsHandler())
 	protected.Delete("/trades/:id/payments/:payment_id", trade.DeleteTradePaymentHandler())
 
+	// Mal Mülk
+	protected.Post("/properties", trade.CreatePropertyHandler())
+	protected.Get("/properties", trade.ListPropertiesHandler())
+	protected.Put("/properties/:id", trade.UpdatePropertyHandler())
+	protected.Delete("/properties/:id", trade.DeletePropertyHandler())
+
 	// Genel finansal özet (eski)
 	protected.Get("/financial-summary/monthly", financial.MonthlyFinancialSummaryHandler())
 

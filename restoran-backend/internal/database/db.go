@@ -121,6 +121,7 @@ func Init(cfg *config.Config) {
 		&models.TradeTransaction{},     // Ticari işlemler (alacak/verecek)
 		&models.TradePayment{},         // Ticari ödemeler
 		&models.BranchProductOrder{},   // Şube bazlı ürün sıralama
+		&models.Property{},             // Mal Mülk
 	)
 	if err != nil {
 		log.Fatalf("AutoMigrate hatası: %v", err)
