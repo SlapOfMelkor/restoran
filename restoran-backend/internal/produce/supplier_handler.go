@@ -252,7 +252,8 @@ func DeleteProduceSupplierHandler() fiber.Handler {
 			}
 		}
 
-		// İlişkili kayıtlar var mı kontrol et
+		// İlişkili kayıtları da sil (tüm kayıtlarıyla birlikte)
+		// Önce ilişkili kayıtları say (audit log için)
 		var purchaseCount int64
 		database.DB.Model(&models.ProducePurchase{}).Where("supplier_id = ?", supplier.ID).Count(&purchaseCount)
 		var paymentCount int64
@@ -260,23 +261,64 @@ func DeleteProduceSupplierHandler() fiber.Handler {
 		var wasteCount int64
 		database.DB.Model(&models.ProduceWaste{}).Where("supplier_id = ?", supplier.ID).Count(&wasteCount)
 
-		if purchaseCount > 0 || paymentCount > 0 || wasteCount > 0 {
-			return fiber.NewError(fiber.StatusBadRequest, "Bu tedarikçiye ait alım, ödeme veya zayiat kaydı bulunduğu için silinemez")
-		}
-
 		beforeData := map[string]interface{}{
-			"id":          supplier.ID,
-			"name":        supplier.Name,
-			"description": supplier.Description,
+			"id":             supplier.ID,
+			"name":           supplier.Name,
+			"description":    supplier.Description,
+			"purchase_count": purchaseCount,
+			"payment_count":  paymentCount,
+			"waste_count":    wasteCount,
 		}
 
-		if err := database.DB.Delete(&supplier).Error; err != nil {
+		// Transaction başlat - tüm silme işlemlerini atomik yap
+		tx := database.DB.Begin()
+		if tx.Error != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "İşlem başlatılamadı")
+		}
+
+		// İlişkili kayıtları sil
+		if purchaseCount > 0 {
+			if err := tx.Where("supplier_id = ?", supplier.ID).Delete(&models.ProducePurchase{}).Error; err != nil {
+				tx.Rollback()
+				return fiber.NewError(fiber.StatusInternalServerError, fmt.Sprintf("Alım kayıtları silinemedi: %v", err))
+			}
+		}
+
+		if paymentCount > 0 {
+			if err := tx.Where("supplier_id = ?", supplier.ID).Delete(&models.ProducePayment{}).Error; err != nil {
+				tx.Rollback()
+				return fiber.NewError(fiber.StatusInternalServerError, fmt.Sprintf("Ödeme kayıtları silinemedi: %v", err))
+			}
+		}
+
+		if wasteCount > 0 {
+			if err := tx.Where("supplier_id = ?", supplier.ID).Delete(&models.ProduceWaste{}).Error; err != nil {
+				tx.Rollback()
+				return fiber.NewError(fiber.StatusInternalServerError, fmt.Sprintf("Zayiat kayıtları silinemedi: %v", err))
+			}
+		}
+
+		// Tedarikçiyi sil
+		if err := tx.Delete(&supplier).Error; err != nil {
+			tx.Rollback()
 			return fiber.NewError(fiber.StatusInternalServerError, "Tedarikçi silinemedi")
+		}
+
+		// Transaction'ı commit et
+		if err := tx.Commit().Error; err != nil {
+			return fiber.NewError(fiber.StatusInternalServerError, "İşlem tamamlanamadı")
 		}
 
 		// Audit log
 		userID, userName, _, err := getUserInfo(c)
 		if err == nil {
+			totalDeleted := purchaseCount + paymentCount + wasteCount
+			desc := fmt.Sprintf("Manav tedarikçi silindi: %s", supplier.Name)
+			if totalDeleted > 0 {
+				desc = fmt.Sprintf("Manav tedarikçi ve tüm kayıtları silindi: %s (%d alım, %d ödeme, %d zayiat)", 
+					supplier.Name, purchaseCount, paymentCount, wasteCount)
+			}
+			
 			branchIDForLog := &supplier.BranchID
 			if logErr := audit.WriteLog(audit.LogOptions{
 				BranchID:    branchIDForLog,
@@ -285,7 +327,7 @@ func DeleteProduceSupplierHandler() fiber.Handler {
 				EntityType:  "produce_supplier",
 				EntityID:    supplier.ID,
 				Action:      models.AuditActionDelete,
-				Description: fmt.Sprintf("Manav tedarikçi silindi: %s", supplier.Name),
+				Description: desc,
 				Before:      beforeData,
 				After:       nil,
 			}); logErr != nil {

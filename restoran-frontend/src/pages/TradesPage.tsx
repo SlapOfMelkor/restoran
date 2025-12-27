@@ -636,12 +636,12 @@ export const TradesPage: React.FC = () => {
       {activeTab === "trades" && (
         <div>
       {/* Başlık ve Filtre */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
         <div className="flex flex-col sm:flex-row gap-3">
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as "all" | "receivable" | "payable")}
-            className="px-4 py-2 bg-white border border-[#E5E5E5] rounded text-sm text-[#222222] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
+            className="px-4 py-2 bg-white border border-[#E5E5E5] rounded-lg text-sm text-[#222222] focus:outline-none focus:ring-2 focus:ring-[#8F1A9F]"
           >
             <option value="all">Tümü</option>
             <option value="receivable">Alacaklar</option>
@@ -649,7 +649,7 @@ export const TradesPage: React.FC = () => {
           </select>
           <button
             onClick={() => setShowTransactionForm(true)}
-            className="px-6 py-2 rounded-xl text-sm font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
+            className="px-6 py-3 md:px-8 md:py-4 rounded-xl text-sm md:text-base font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white shadow-lg hover:shadow-xl"
           >
             İşlem Oluştur
           </button>
@@ -947,7 +947,7 @@ export const TradesPage: React.FC = () => {
                                 setSelectedTransaction(tx);
                                 setShowPaymentForm(true);
                               }}
-                              className="px-4 py-2 rounded text-sm font-medium transition-colors bg-green-600 hover:bg-green-700 text-white whitespace-nowrap"
+                              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-green-600 hover:bg-green-700 text-white whitespace-nowrap shadow-md hover:shadow-lg"
                             >
                               Ödeme Al
                             </button>
@@ -1076,7 +1076,7 @@ export const TradesPage: React.FC = () => {
                                 setSelectedTransaction(tx);
                                 setShowPaymentForm(true);
                               }}
-                              className="px-4 py-2 rounded text-sm font-medium transition-colors bg-red-600 hover:bg-red-700 text-white whitespace-nowrap"
+                              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-red-600 hover:bg-red-700 text-white whitespace-nowrap shadow-md hover:shadow-lg"
                             >
                               Ödeme Yap
                             </button>
@@ -1144,7 +1144,7 @@ export const TradesPage: React.FC = () => {
       {activeTab === "properties" && (
         <div>
           {/* Başlık ve Buton */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
             <h2 className="text-xl font-bold text-[#222222]">Mal Mülk</h2>
             <button
               onClick={() => {
@@ -1156,7 +1156,7 @@ export const TradesPage: React.FC = () => {
                 });
                 setShowPropertyForm(true);
               }}
-              className="px-6 py-2 rounded-xl text-sm font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
+              className="px-6 py-3 md:px-8 md:py-4 rounded-xl text-sm md:text-base font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white shadow-lg hover:shadow-xl"
             >
               Mal Mülk Ekle
             </button>
@@ -1316,13 +1316,13 @@ export const TradesPage: React.FC = () => {
                             <>
                               <button
                                 onClick={() => handleEditProperty(property)}
-                                className="px-4 py-2 rounded text-sm font-medium transition-colors bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
+                                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap shadow-md hover:shadow-lg"
                               >
                                 Düzenle
                               </button>
                               <button
                                 onClick={() => handleDeleteProperty(property)}
-                                className="px-4 py-2 rounded text-sm font-medium transition-colors bg-red-600 hover:bg-red-700 text-white whitespace-nowrap"
+                                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-red-600 hover:bg-red-700 text-white whitespace-nowrap shadow-md hover:shadow-lg"
                               >
                                 Sil
                               </button>
@@ -1331,7 +1331,7 @@ export const TradesPage: React.FC = () => {
                           {property.log_id && canUndoProperty(property) && (
                             <button
                               onClick={() => handleUndoProperty(property.log_id!, property.id)}
-                              className="px-4 py-2 rounded text-sm font-medium transition-colors bg-orange-600 hover:bg-orange-700 text-white whitespace-nowrap"
+                              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-orange-600 hover:bg-orange-700 text-white whitespace-nowrap shadow-md hover:shadow-lg"
                             >
                               Geri Al
                             </button>

@@ -732,6 +732,35 @@ export const ProducePage: React.FC = () => {
     window.location.reload();
   };
 
+  const handleDeleteSupplier = async (supplier: ProduceSupplier, e: React.MouseEvent) => {
+    e.stopPropagation(); // Parent div'in onClick'ini engelle
+    
+    if (!confirm(`Bu tedarikçiyi (${supplier.name}) ve tüm kayıtlarını (alımlar, ödemeler, zayiat) silmek istediğinize emin misiniz? Bu işlem geri alınamaz!`)) {
+      return;
+    }
+
+    try {
+      await apiClient.delete(`/produce-suppliers/${supplier.id}`);
+      alert("Tedarikçi ve tüm kayıtları başarıyla silindi");
+      
+      // Eğer silinen supplier seçili supplier ise, seçimi temizle
+      if (selectedSupplier?.id === supplier.id) {
+        setSelectedSupplier(null);
+        localStorage.removeItem("selectedProduceSupplierId");
+      }
+      
+      await fetchSuppliers();
+      
+      // Eğer başka supplier yoksa, selector'ı göster
+      const remainingSuppliers = suppliers.filter(s => s.id !== supplier.id);
+      if (remainingSuppliers.length === 0) {
+        setShowSupplierSelector(true);
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Tedarikçi silinemedi");
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Supplier Seçim Modal */}
@@ -757,18 +786,32 @@ export const ProducePage: React.FC = () => {
               {suppliers.map((supplier) => (
                 <div
                   key={supplier.id}
-                  onClick={() => handleSelectSupplier(supplier)}
-                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-[#8F1A9F] hover:bg-gray-50"
+                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-[#8F1A9F] hover:bg-gray-50"
                 >
-                  <div>
+                  <div 
+                    onClick={() => handleSelectSupplier(supplier)}
+                    className="flex-1 cursor-pointer"
+                  >
                     <div className="font-medium text-sm">{supplier.name}</div>
                     {supplier.description && (
                       <div className="text-xs text-gray-500">{supplier.description}</div>
                     )}
                   </div>
-                  <button className="px-4 py-2 rounded text-sm font-medium transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white">
-                    Seç
-                  </button>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => handleSelectSupplier(supplier)}
+                      className="px-4 py-2 rounded text-sm font-medium transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white"
+                    >
+                      Seç
+                    </button>
+                    <button
+                      onClick={(e) => handleDeleteSupplier(supplier, e)}
+                      className="px-4 py-2 rounded text-sm font-medium transition-colors bg-red-600 hover:bg-red-700 text-white"
+                      title="Tedarikçiyi ve tüm kayıtlarını sil"
+                    >
+                      Sil
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -851,38 +894,17 @@ export const ProducePage: React.FC = () => {
         </button>
       </div>
 
-      <div className="flex items-center justify-center py-8">
-        <div className="flex flex-wrap gap-4 justify-center">
+      <div className="flex items-center justify-center py-4 md:py-8">
+        <div className="flex flex-col md:flex-row gap-3 md:gap-4 w-full max-w-md md:max-w-none px-4 md:px-0 md:flex-wrap md:justify-center">
           <button
             onClick={() => {
               setEditingProduct(null);
               setProductFormData({ name: "", unit: "", stock_code: "" });
               setShowProductModal(true);
             }}
-            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
+            className="px-6 py-3 md:px-8 md:py-4 rounded-xl text-sm md:text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl w-full md:min-w-[200px] md:max-w-[250px] whitespace-normal text-center break-words"
           >
             Ürün Yönetimi
-          </button>
-          <button
-            onClick={() => setShowPurchasesModal(true)}
-            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
-          >
-            Alım Kayıtları
-          </button>
-          <button
-            onClick={() => setShowPaymentsModal(true)}
-            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
-          >
-            Ödeme Kayıtları
-          </button>
-          <button
-            onClick={() => {
-              fetchWastes();
-              setShowWastesModal(true);
-            }}
-            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
-          >
-            Zayiat Kayıtları
           </button>
           <button
             onClick={() => {
@@ -901,7 +923,7 @@ export const ProducePage: React.FC = () => {
               });
               setShowPurchaseForm(true);
             }}
-            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
+            className="px-6 py-3 md:px-8 md:py-4 rounded-xl text-sm md:text-base font-semibold transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] text-white shadow-lg hover:shadow-xl w-full md:min-w-[200px] md:max-w-[250px] whitespace-normal text-center break-words"
           >
             Alım Ekle
           </button>
@@ -920,7 +942,7 @@ export const ProducePage: React.FC = () => {
               });
               setShowPaymentForm(true);
             }}
-            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
+            className="px-6 py-3 md:px-8 md:py-4 rounded-xl text-sm md:text-base font-semibold transition-colors bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl w-full md:min-w-[200px] md:max-w-[250px] whitespace-normal text-center break-words"
           >
             Ödeme Ekle
           </button>
@@ -941,9 +963,30 @@ export const ProducePage: React.FC = () => {
               });
               setShowWasteForm(true);
             }}
-            className="px-8 py-4 rounded-xl text-base font-semibold transition-colors bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl min-w-[200px] max-w-[250px] whitespace-normal text-center break-words"
+            className="px-6 py-3 md:px-8 md:py-4 rounded-xl text-sm md:text-base font-semibold transition-colors bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl w-full md:min-w-[200px] md:max-w-[250px] whitespace-normal text-center break-words"
           >
             Zayiat Ekle
+          </button>
+          <button
+            onClick={() => setShowPurchasesModal(true)}
+            className="px-6 py-3 md:px-8 md:py-4 rounded-xl text-sm md:text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl w-full md:min-w-[200px] md:max-w-[250px] whitespace-normal text-center break-words"
+          >
+            Alım Kayıtları
+          </button>
+          <button
+            onClick={() => setShowPaymentsModal(true)}
+            className="px-6 py-3 md:px-8 md:py-4 rounded-xl text-sm md:text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl w-full md:min-w-[200px] md:max-w-[250px] whitespace-normal text-center break-words"
+          >
+            Ödeme Kayıtları
+          </button>
+          <button
+            onClick={() => {
+              fetchWastes();
+              setShowWastesModal(true);
+            }}
+            className="px-6 py-3 md:px-8 md:py-4 rounded-xl text-sm md:text-base font-semibold transition-colors bg-white text-[#8F1A9F] border border-[#E5E5E5] shadow-lg hover:shadow-xl w-full md:min-w-[200px] md:max-w-[250px] whitespace-normal text-center break-words"
+          >
+            Zayiat Kayıtları
           </button>
         </div>
       </div>
