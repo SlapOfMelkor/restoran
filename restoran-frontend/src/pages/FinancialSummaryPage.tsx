@@ -16,7 +16,6 @@ interface FinancialSummary {
   total_revenue: number;
   total_expenses: number;
   shipment_costs: number;
-  waste_cost?: number;
   credit_card_debt?: number;
   bank_balance?: number;
   net_profit: number;
@@ -240,14 +239,6 @@ export const FinancialSummaryPage: React.FC = () => {
                 {summary.shipment_costs.toFixed(2)} TL
               </div>
             </div>
-            {summary.waste_cost !== undefined && (
-              <div className="bg-white/80 rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
-                <div className="text-xs text-[#222222] mb-1">Ürün Zayiatı</div>
-                <div className="text-lg font-bold text-yellow-400">
-                  {summary.waste_cost.toFixed(2)} TL
-                </div>
-              </div>
-            )}
             {summary.credit_card_debt !== undefined && (
               <div className="bg-white/80 rounded-2xl border border-[#E5E5E5] p-4 shadow-sm">
                 <div className="text-xs text-[#222222] mb-1">Kredi Kartı Borçları</div>

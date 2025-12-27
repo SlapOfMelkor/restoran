@@ -41,23 +41,22 @@ func resolveBranchIDFromQueryOrRole(c *fiber.Ctx) (uint, error) {
 }
 
 type FinancialSummaryResponse struct {
-	Period         string          `json:"period"`          // "daily", "weekly", "monthly"
-	StartDate      string          `json:"start_date"`
-	EndDate        string          `json:"end_date"`
-	TotalRevenue   float64         `json:"total_revenue"`   // toplam ciro
-	TotalExpenses  float64         `json:"total_expenses"`  // toplam giderler
-	ShipmentCosts  float64         `json:"shipment_costs"`  // sevkiyat maliyetleri
-	WasteCost      float64         `json:"waste_cost"`      // zayiat maliyeti
-	CreditCardDebt float64         `json:"credit_card_debt"` // kredi kartı borçları
-	BankBalance    float64         `json:"bank_balance"`    // banka hesapları toplam bakiyesi
-	NetProfit      float64         `json:"net_profit"`      // net kar
-	DailyBreakdown []DailyRevenue  `json:"daily_breakdown,omitempty"` // günlük detay (sadece daily/weekly için)
+	Period         string         `json:"period"` // "daily", "weekly", "monthly"
+	StartDate      string         `json:"start_date"`
+	EndDate        string         `json:"end_date"`
+	TotalRevenue   float64        `json:"total_revenue"`             // toplam ciro
+	TotalExpenses  float64        `json:"total_expenses"`            // toplam giderler
+	ShipmentCosts  float64        `json:"shipment_costs"`            // sevkiyat maliyetleri
+	CreditCardDebt float64        `json:"credit_card_debt"`          // kredi kartı borçları
+	BankBalance    float64        `json:"bank_balance"`              // banka hesapları toplam bakiyesi
+	NetProfit      float64        `json:"net_profit"`                // net kar
+	DailyBreakdown []DailyRevenue `json:"daily_breakdown,omitempty"` // günlük detay (sadece daily/weekly için)
 }
 
 type DailyRevenue struct {
-	Date    string  `json:"date"`
-	Revenue float64 `json:"revenue"`
-	Expenses float64 `json:"expenses"`
+	Date          string  `json:"date"`
+	Revenue       float64 `json:"revenue"`
+	Expenses      float64 `json:"expenses"`
 	ShipmentCosts float64 `json:"shipment_costs"`
 }
 
@@ -85,9 +84,9 @@ func GetDailyFinancialSummaryHandler() fiber.Handler {
 			return fiber.NewError(fiber.StatusBadRequest, "to tarihi geçersiz")
 		}
 
-		// Günlük ciro (cash movements)
+		// Günlük ciro (cash movements) - sadece girişler (direction = "in")
 		var cashMovements []models.CashMovement
-		database.DB.Where("branch_id = ? AND date >= ? AND date <= ?", branchID, from, to).
+		database.DB.Where("branch_id = ? AND date >= ? AND date <= ? AND direction = ?", branchID, from, to, "in").
 			Find(&cashMovements)
 
 		// Günlük giderler
@@ -106,10 +105,10 @@ func GetDailyFinancialSummaryHandler() fiber.Handler {
 		for !current.After(to) {
 			dateStr := current.Format("2006-01-02")
 			dailyMap[dateStr] = DailyRevenue{
-				Date:           dateStr,
-				Revenue:        0,
-				Expenses:       0,
-				ShipmentCosts:  0,
+				Date:          dateStr,
+				Revenue:       0,
+				Expenses:      0,
+				ShipmentCosts: 0,
 			}
 			current = current.AddDate(0, 0, 1)
 		}
@@ -196,14 +195,14 @@ func GetWeeklyFinancialSummaryHandler() fiber.Handler {
 		weekday := jan1.Weekday()
 		daysToMonday := (int(weekday) + 6) % 7 // Pazartesi'ye kadar gün sayısı
 		firstMonday := jan1.AddDate(0, 0, -daysToMonday)
-		
+
 		// İstenen haftanın başlangıcı
 		weekStart := firstMonday.AddDate(0, 0, (week-1)*7)
 		weekEnd := weekStart.AddDate(0, 0, 6) // Pazar
 
-		// Haftalık verileri topla
+		// Haftalık verileri topla - sadece girişler (direction = "in")
 		var cashMovements []models.CashMovement
-		database.DB.Where("branch_id = ? AND date >= ? AND date <= ?", branchID, weekStart, weekEnd).
+		database.DB.Where("branch_id = ? AND date >= ? AND date <= ? AND direction = ?", branchID, weekStart, weekEnd, "in").
 			Find(&cashMovements)
 
 		var expenses []models.Expense
@@ -314,22 +313,17 @@ func GetMonthlyFinancialSummaryHandler() fiber.Handler {
 			Find(&expenses)
 
 		var shipments []models.Shipment
-		database.DB.Preload("Items").Where("branch_id = ? AND date >= ? AND date <= ?", branchID, firstDay, lastDay).
+		database.DB.Where("branch_id = ? AND date >= ? AND date <= ?", branchID, firstDay, lastDay).
 			Find(&shipments)
-
-		// Zayiat girişleri
-		var wasteEntries []models.WasteEntry
-		database.DB.Preload("Product").Where("branch_id = ? AND date >= ? AND date <= ?", branchID, firstDay, lastDay).
-			Find(&wasteEntries)
 
 		// Banka hesapları ve kredi kartları
 		var bankAccounts []models.BankAccount
 		database.DB.Where("branch_id = ?", branchID).Find(&bankAccounts)
 
-		var totalRevenue, totalExpenses, totalShipmentCosts, totalWasteCost float64
+		var totalRevenue, totalExpenses, totalShipmentCosts float64
 		var totalCreditCardDebt, totalBankBalance float64
 
-		// Ciro
+		// Ciro - sadece girişler (direction = "in")
 		for _, cm := range cashMovements {
 			if cm.Direction == "in" {
 				totalRevenue += cm.Amount
@@ -346,36 +340,6 @@ func GetMonthlyFinancialSummaryHandler() fiber.Handler {
 			totalShipmentCosts += sh.TotalAmount
 		}
 
-		// Zayiat maliyeti: Waste entries'lerin maliyetini hesapla
-		// Ürün fiyatlarını shipment'lerden al (ortalama birim fiyat)
-		productPriceMap := make(map[uint]float64) // product_id -> ortalama birim fiyat
-		for _, sh := range shipments {
-			for _, item := range sh.Items {
-				if _, exists := productPriceMap[item.ProductID]; !exists {
-					productPriceMap[item.ProductID] = item.UnitPrice
-				} else {
-					// Ortalama al
-					productPriceMap[item.ProductID] = (productPriceMap[item.ProductID] + item.UnitPrice) / 2
-				}
-			}
-		}
-
-		for _, waste := range wasteEntries {
-			unitPrice := productPriceMap[waste.ProductID]
-			if unitPrice == 0 {
-				// Fiyat bulunamazsa, son shipment'lerden ortalama al
-				var lastShipmentItem models.ShipmentItem
-				if err := database.DB.
-					Joins("JOIN shipments ON shipments.id = shipment_items.shipment_id").
-					Where("shipments.branch_id = ? AND shipment_items.product_id = ?", branchID, waste.ProductID).
-					Order("shipments.date DESC").
-					First(&lastShipmentItem).Error; err == nil {
-					unitPrice = lastShipmentItem.UnitPrice
-				}
-			}
-			totalWasteCost += waste.Quantity * unitPrice
-		}
-
 		// Banka hesapları ve kredi kartları
 		for _, acc := range bankAccounts {
 			if acc.Type == models.AccountTypeCreditCard {
@@ -389,6 +353,9 @@ func GetMonthlyFinancialSummaryHandler() fiber.Handler {
 			}
 		}
 
+		// Net kar = Ciro - Giderler - Sevkiyat maliyetleri
+		netProfit := totalRevenue - totalExpenses - totalShipmentCosts
+
 		return c.JSON(FinancialSummaryResponse{
 			Period:         "monthly",
 			StartDate:      firstDay.Format("2006-01-02"),
@@ -396,11 +363,9 @@ func GetMonthlyFinancialSummaryHandler() fiber.Handler {
 			TotalRevenue:   totalRevenue,
 			TotalExpenses:  totalExpenses,
 			ShipmentCosts:  totalShipmentCosts,
-			WasteCost:      totalWasteCost,
 			CreditCardDebt: totalCreditCardDebt,
 			BankBalance:    totalBankBalance,
-			NetProfit:      totalRevenue - totalExpenses - totalShipmentCosts - totalWasteCost,
+			NetProfit:      netProfit,
 		})
 	}
 }
-
