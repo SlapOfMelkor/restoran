@@ -1238,7 +1238,9 @@ export const TradesPage: React.FC = () => {
                   disabled={submitting}
                   className="flex-1 px-4 py-2 rounded text-sm font-medium transition-colors bg-[#8F1A9F] hover:bg-[#7a168c] disabled:opacity-50 text-white"
                 >
-                  {submitting ? (editingProperty ? "Güncelleniyor..." : "Oluşturuluyor...") : (editingProperty ? "Güncelle" : "Oluştur")}
+                  {submitting
+                    ? (editingProperty ? "Güncelleniyor..." : "Oluşturuluyor...")
+                    : (editingProperty ? "Güncelle" : "Oluştur")}
                 </button>
                 <button
                   type="button"
